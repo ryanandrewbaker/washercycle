@@ -137,7 +137,7 @@ class WasherCycleTimeRemainingSensor(WasherCycleSensorBase):
 
     _attr_translation_key = "time_remaining"
     _attr_device_class = SensorDeviceClass.DURATION
-    _attr.native_unit_of_measurement = UnitOfTime.SECONDS
+    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
 
     def __init__(self, coordinator: WasherCycleCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator, entry)
@@ -194,7 +194,7 @@ class WasherCycleCycleEnergySensor(WasherCycleSensorBase):
 
     _attr_translation_key = "cycle_energy"
     _attr_device_class = SensorDeviceClass.ENERGY
-    _attr.native_unit_of_measurement = UnitOfEnergy.WATT_HOUR
+    _attr_native_unit_of_measurement = UnitOfEnergy.WATT_HOUR
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
 
     def __init__(self, coordinator: WasherCycleCoordinator, entry: ConfigEntry) -> None:
@@ -213,7 +213,7 @@ class WasherCycleLastCycleDurationSensor(WasherCycleSensorBase):
 
     _attr_translation_key = "last_cycle_duration"
     _attr_device_class = SensorDeviceClass.DURATION
-    _attr.native_unit_of_measurement = UnitOfTime.SECONDS
+    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
 
     def __init__(self, coordinator: WasherCycleCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator, entry)
@@ -230,7 +230,7 @@ class WasherCycleLastCycleEnergySensor(WasherCycleSensorBase):
 
     _attr_translation_key = "last_cycle_energy"
     _attr_device_class = SensorDeviceClass.ENERGY
-    _attr.native_unit_of_measurement = UnitOfEnergy.WATT_HOUR
+    _attr_native_unit_of_measurement = UnitOfEnergy.WATT_HOUR
 
     def __init__(self, coordinator: WasherCycleCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator, entry)
@@ -309,7 +309,7 @@ class WasherCycleRecordingDurationSensor(WasherCycleSensorBase):
 
     _attr_translation_key = "recording_duration"
     _attr_device_class = SensorDeviceClass.DURATION
-    _attr.native_unit_of_measurement = UnitOfTime.SECONDS
+    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
 
     def __init__(self, coordinator: WasherCycleCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator, entry)
@@ -331,7 +331,7 @@ class WasherCycleRecordingEnergySensor(WasherCycleSensorBase):
 
     _attr_translation_key = "recording_energy"
     _attr_device_class = SensorDeviceClass.ENERGY
-    _attr.native_unit_of_measurement = UnitOfEnergy.WATT_HOUR
+    _attr_native_unit_of_measurement = UnitOfEnergy.WATT_HOUR
 
     def __init__(self, coordinator: WasherCycleCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator, entry)
