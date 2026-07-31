@@ -1,0 +1,110 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "WasherCycle",
+        "description": "Configure source sensors for your Samsung washing machine.",
+        "data": {
+          "power_sensor": "Power sensor",
+          "energy_sensor": "Energy sensor",
+          "plug_switch": "Smart plug switch",
+          "door_sensor": "Door contact sensor",
+          "movement_sensor": "Movement sensor",
+          "temperature_sensor": "Temperature sensor (optional)",
+          "plug_lqi_sensor": "Plug link quality (optional)",
+          "door_lqi_sensor": "Door link quality (optional)",
+          "door_battery_sensor": "Door battery (optional)",
+          "door_battery_low_sensor": "Door battery low (optional)"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure WasherCycle",
+        "data": {
+          "power_sensor": "Power sensor",
+          "energy_sensor": "Energy sensor",
+          "plug_switch": "Smart plug switch",
+          "door_sensor": "Door contact sensor",
+          "movement_sensor": "Movement sensor",
+          "temperature_sensor": "Temperature sensor (optional)",
+          "plug_lqi_sensor": "Plug link quality (optional)",
+          "door_lqi_sensor": "Door link quality (optional)",
+          "door_battery_sensor": "Door battery (optional)",
+          "door_battery_low_sensor": "Door battery low (optional)"
+        }
+      }
+    },
+    "error": {
+      "start_power_must_exceed_standby": "Start power threshold must exceed standby threshold.",
+      "fallback_too_short": "Fallback completion delay must be at least 120 seconds."
+    },
+    "abort": {
+      "already_configured": "This washer is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "WasherCycle options",
+        "data": {
+          "shadow_mode": "Shadow mode (no announcements)",
+          "legacy_status_mirror": "Mirror state to input_text.washing_machine_status",
+          "start_power_w": "Start power threshold (W)",
+          "standby_power_w": "Standby power threshold (W)",
+          "start_sustain_seconds": "Minimum sustained start duration (s)",
+          "fallback_completion_seconds": "Conservative fallback completion (s)",
+          "early_completion_enabled": "Early completion enabled",
+          "early_completion_min_score": "Early completion minimum score",
+          "door_correlation_seconds": "Door completion correlation window (s)",
+          "movement_enabled": "Use movement evidence",
+          "min_runs_recognition": "Minimum runs for recognition",
+          "min_runs_robust": "Minimum runs for robust profile",
+          "completion_announcements_enabled": "Completion announcements",
+          "rewash_announcements_enabled": "Rewash announcements",
+          "rewash_delay_minutes": "Rewash delay (minutes)",
+          "completion_message": "Completion message",
+          "rewash_message": "Rewash message",
+          "tts_entity": "TTS entity",
+          "tts_mode": "TTS mode (speak or cloud_say)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "state": { "name": "State" },
+      "program": { "name": "Program" },
+      "progress": { "name": "Progress" },
+      "time_remaining": { "name": "Time remaining" },
+      "expected_completion": { "name": "Expected completion" },
+      "cycle_duration": { "name": "Cycle duration" },
+      "cycle_energy": { "name": "Cycle energy" },
+      "last_cycle_duration": { "name": "Last cycle duration" },
+      "last_cycle_energy": { "name": "Last cycle energy" },
+      "program_confidence": { "name": "Program confidence" },
+      "eta_confidence": { "name": "ETA confidence" },
+      "completion_latency": { "name": "Completion latency" },
+      "training_runs": { "name": "Training runs" },
+      "recording_duration": { "name": "Recording duration" },
+      "recording_energy": { "name": "Recording energy" }
+    },
+    "binary_sensor": {
+      "running": { "name": "Running" },
+      "recording": { "name": "Recording" },
+      "needs_emptying": { "name": "Needs emptying" },
+      "needs_rewash": { "name": "Needs rewash" },
+      "data_quality_problem": { "name": "Data quality problem" }
+    },
+    "select": {
+      "program_select": { "name": "Program" },
+      "training_program_select": { "name": "Training program" }
+    },
+    "button": {
+      "start_recording": { "name": "Start recording" },
+      "mark_complete": { "name": "Mark complete" },
+      "cancel_recording": { "name": "Cancel recording" },
+      "confirm_program": { "name": "Confirm program" },
+      "rebuild_profiles": { "name": "Rebuild profiles" },
+      "export_diagnostics": { "name": "Export diagnostics" }
+    }
+  }
+}

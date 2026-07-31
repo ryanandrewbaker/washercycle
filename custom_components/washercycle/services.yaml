@@ -1,0 +1,133 @@
+start_recording:
+  name: Start recording
+  description: Start a training recording for the selected program.
+  fields:
+    program_id:
+      name: Program ID
+      description: Optional program ID override.
+      example: daily_wash
+      selector:
+        text:
+    config_entry_id:
+      name: Config entry ID
+      description: WasherCycle config entry ID.
+      selector:
+        text:
+
+mark_complete:
+  name: Mark complete
+  description: Mark the training run complete at the audible chirp and save.
+  fields:
+    config_entry_id:
+      name: Config entry ID
+      selector:
+        text:
+
+cancel_recording:
+  name: Cancel recording
+  description: Cancel the active training recording without saving.
+  fields:
+    config_entry_id:
+      name: Config entry ID
+      selector:
+        text:
+
+exclude_run:
+  name: Exclude run
+  description: Exclude a training run from profile aggregation.
+  fields:
+    run_id:
+      name: Run ID
+      required: true
+      selector:
+        text:
+    config_entry_id:
+      name: Config entry ID
+      selector:
+        text:
+
+include_run:
+  name: Include run
+  description: Re-include a previously excluded training run.
+  fields:
+    run_id:
+      name: Run ID
+      required: true
+      selector:
+        text:
+    config_entry_id:
+      name: Config entry ID
+      selector:
+        text:
+
+relabel_run:
+  name: Relabel run
+  description: Move a training run to a different program.
+  fields:
+    run_id:
+      name: Run ID
+      required: true
+      selector:
+        text:
+    program_id:
+      name: Program ID
+      required: true
+      selector:
+        text:
+
+rebuild_profiles:
+  name: Rebuild profiles
+  description: Force rebuild of program profiles from accepted training runs.
+  fields:
+    program_id:
+      name: Program ID
+      description: Optional single program to rebuild.
+      selector:
+        text:
+    config_entry_id:
+      name: Config entry ID
+      selector:
+        text:
+
+export_run:
+  name: Export run
+  description: Export a training run trace for replay.
+  fields:
+    run_id:
+      name: Run ID
+      required: true
+      selector:
+        text:
+
+delete_run:
+  name: Delete run
+  description: Delete a training run. Requires confirm=true.
+  fields:
+    run_id:
+      name: Run ID
+      required: true
+      selector:
+        text:
+    confirm:
+      name: Confirm
+      required: true
+      selector:
+        boolean:
+
+force_empty:
+  name: Force empty
+  description: Manually mark the washer as emptied.
+  fields:
+    config_entry_id:
+      name: Config entry ID
+      selector:
+        text:
+
+export_diagnostics:
+  name: Export diagnostics
+  description: Export extended diagnostic bundle.
+  fields:
+    config_entry_id:
+      name: Config entry ID
+      selector:
+        text:

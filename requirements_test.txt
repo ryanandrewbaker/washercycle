@@ -1,0 +1,5 @@
+# Minimal deps for local domain/replay tests (works on macOS system Python 3.9+)
+pytest>=8.0
+pytest-asyncio>=0.23
+voluptuous>=0.13.0
+ruff>=0.4.0

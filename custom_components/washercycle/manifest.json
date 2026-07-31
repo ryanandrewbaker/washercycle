@@ -1,0 +1,13 @@
+{
+  "domain": "washercycle",
+  "name": "WasherCycle",
+  "codeowners": ["@ryanandrewbaker"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/ryanandrewbaker/washercycle",
+  "integration_type": "device",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/ryanandrewbaker/washercycle/issues",
+  "requirements": [],
+  "version": "1.0.0"
+}

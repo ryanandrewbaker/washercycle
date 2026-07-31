@@ -1,0 +1,46 @@
+# WasherCycle notification package
+# Independent phone notifications — fixes mutually exclusive choose bug
+
+automation:
+  - id: washercycle_notify_completion
+    alias: WasherCycle - Notify Completion
+    description: Send mobile notifications when washing completes.
+    triggers:
+      - trigger: event
+        event_type: washercycle_cycle_completed
+    conditions: []
+    actions:
+      - condition: state
+        entity_id: input_boolean.notify_ryan
+        state: "on"
+      - action: notify.mobile_app_ryans_iphone
+        data:
+          title: Washing complete
+          message: Washing complete. Please empty the machine.
+      - condition: state
+        entity_id: input_boolean.notify_kelly
+        state: "on"
+      - action: notify.mobile_app_kellys_iphone
+        data:
+          message: Washing complete. Please empty the machine.
+
+  - id: washercycle_notify_rewash
+    alias: WasherCycle - Notify Rewash
+    description: Send mobile notifications when rewash is needed.
+    triggers:
+      - trigger: event
+        event_type: washercycle_needs_rewash
+    conditions: []
+    actions:
+      - condition: state
+        entity_id: input_boolean.notify_ryan
+        state: "on"
+      - action: notify.mobile_app_ryans_iphone
+        data:
+          message: Washing still has not been emptied. It may need rewashing.
+      - condition: state
+        entity_id: input_boolean.notify_kelly
+        state: "on"
+      - action: notify.mobile_app_kellys_iphone
+        data:
+          message: Washing still has not been emptied. It may need rewashing.

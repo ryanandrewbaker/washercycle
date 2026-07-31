@@ -1,0 +1,15 @@
+# WasherCycle dashboard entities reference
+# Use after removing ha_washdata and renaming device to "Washing Machine"
+
+type: entities
+title: WasherCycle
+entities:
+  - entity: sensor.washercycle_state
+  - entity: sensor.washercycle_program
+  - entity: sensor.washercycle_progress
+  - entity: sensor.washercycle_time_remaining
+  - entity: binary_sensor.washercycle_running
+  - entity: binary_sensor.washercycle_needs_emptying
+  - entity: select.washercycle_program_select
+  - entity: button.washercycle_start_recording
+  - entity: button.washercycle_mark_complete
