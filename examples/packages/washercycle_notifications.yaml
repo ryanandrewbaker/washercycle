@@ -8,7 +8,9 @@ automation:
     triggers:
       - trigger: event
         event_type: washercycle_cycle_completed
-    conditions: []
+    conditions:
+      - condition: template
+        value_template: "{{ trigger.event.data.get('shadow') != true }}"
     actions:
       - condition: state
         entity_id: input_boolean.notify_ryan
@@ -30,7 +32,9 @@ automation:
     triggers:
       - trigger: event
         event_type: washercycle_needs_rewash
-    conditions: []
+    conditions:
+      - condition: template
+        value_template: "{{ trigger.event.data.get('shadow') != true }}"
     actions:
       - condition: state
         entity_id: input_boolean.notify_ryan
@@ -44,3 +48,24 @@ automation:
       - action: notify.mobile_app_kellys_iphone
         data:
           message: Washing still has not been emptied. It may need rewashing.
+
+  - id: washercycle_clear_stale_on_empty
+    alias: WasherCycle - Clear notifications on empty
+    description: Clear stale mobile notifications when the washer is emptied.
+    triggers:
+      - trigger: event
+        event_type: washercycle_cycle_emptied
+    conditions:
+      - condition: template
+        value_template: "{{ trigger.event.data.get('shadow') != true }}"
+    actions:
+      - action: notify.mobile_app_ryans_iphone
+        data:
+          message: clear_notification
+          data:
+            tag: washercycle_completion
+      - action: notify.mobile_app_kellys_iphone
+        data:
+          message: clear_notification
+          data:
+            tag: washercycle_completion

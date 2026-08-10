@@ -15,14 +15,12 @@ from .const import (
     MANUFACTURER,
     MODEL,
     PLATFORMS,
-    SERVICE_CANCEL_RECORDING,
     SERVICE_DELETE_RUN,
     SERVICE_EXCLUDE_RUN,
     SERVICE_FORCE_EMPTY,
     SERVICE_INCLUDE_RUN,
-    SERVICE_MARK_COMPLETE,
     SERVICE_REBUILD_PROFILES,
-    SERVICE_START_RECORDING,
+    SERVICE_RELABEL_LAST_CYCLE,
 )
 from .coordinator import WasherCycleCoordinator
 
@@ -80,20 +78,10 @@ def _register_services(hass: HomeAssistant) -> None:
             return next(iter(domain_data.values()))
         return None
 
-    async def handle_start_recording(call: ServiceCall) -> None:
+    async def handle_relabel_last_cycle(call: ServiceCall) -> None:
         coordinator = await _get_coordinator(call)
-        if coordinator:
-            await coordinator.async_start_recording(call.data.get("program_id"))
-
-    async def handle_mark_complete(call: ServiceCall) -> None:
-        coordinator = await _get_coordinator(call)
-        if coordinator:
-            await coordinator.async_mark_complete()
-
-    async def handle_cancel_recording(call: ServiceCall) -> None:
-        coordinator = await _get_coordinator(call)
-        if coordinator:
-            await coordinator.async_cancel_recording()
+        if coordinator and (program_id := call.data.get("program_id")):
+            await coordinator.async_relabel_last_cycle(program_id)
 
     async def handle_force_empty(call: ServiceCall) -> None:
         coordinator = await _get_coordinator(call)
@@ -146,9 +134,7 @@ def _register_services(hass: HomeAssistant) -> None:
     )
 
     services = {
-        SERVICE_START_RECORDING: handle_start_recording,
-        SERVICE_MARK_COMPLETE: handle_mark_complete,
-        SERVICE_CANCEL_RECORDING: handle_cancel_recording,
+        SERVICE_RELABEL_LAST_CYCLE: handle_relabel_last_cycle,
         SERVICE_FORCE_EMPTY: handle_force_empty,
         SERVICE_REBUILD_PROFILES: handle_rebuild_profiles,
         SERVICE_EXCLUDE_RUN: handle_exclude_run,

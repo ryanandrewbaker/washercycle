@@ -50,12 +50,24 @@ INTERNAL_TO_PUBLIC: dict[InternalState, PublicState] = {
     InternalState.IDLE: PublicState.IDLE,
     InternalState.START_CANDIDATE: PublicState.STARTING,
     InternalState.RUNNING: PublicState.RUNNING,
-    InternalState.PAUSED: PublicState.PAUSED,
+    InternalState.PAUSED: PublicState.RUNNING,
     InternalState.END_CANDIDATE: PublicState.FINISHING,
     InternalState.NEEDS_EMPTYING: PublicState.NEEDS_EMPTYING,
     InternalState.NEEDS_REWASH: PublicState.NEEDS_REWASH,
-    InternalState.UNKNOWN: PublicState.UNKNOWN,
+    InternalState.UNKNOWN: PublicState.UNAVAILABLE,
 }
+
+
+class SampleSource(StrEnum):
+    """Which entity triggered a detector process call."""
+
+    POWER = "power"
+    ENERGY = "energy"
+    DOOR = "door"
+    MOVEMENT = "movement"
+    PLUG = "plug"
+    OTHER = "other"
+    TICK = "tick"
 
 
 class ProgramMatchState(StrEnum):
@@ -247,6 +259,14 @@ class CycleRecord:
     progress: float = 0.0
     expected_completion_at: str | None = None
     time_remaining_seconds: int | None = None
+    calibration_program_id: str | None = None
+    calibration_label_consumed: bool = False
+    archive_pending: bool = False
+    post_window_until: str | None = None
+    program_identified_at: str | None = None
+    completion_detected_at: str | None = None
+    match_rejection_reason: str | None = None
+    prediction_timeline: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize for storage."""
@@ -287,6 +307,14 @@ class CycleRecord:
             "progress": self.progress,
             "expected_completion_at": self.expected_completion_at,
             "time_remaining_seconds": self.time_remaining_seconds,
+            "calibration_program_id": self.calibration_program_id,
+            "calibration_label_consumed": self.calibration_label_consumed,
+            "archive_pending": self.archive_pending,
+            "post_window_until": self.post_window_until,
+            "program_identified_at": self.program_identified_at,
+            "completion_detected_at": self.completion_detected_at,
+            "match_rejection_reason": self.match_rejection_reason,
+            "prediction_timeline": self.prediction_timeline[-100:],
         }
 
     @classmethod
@@ -331,6 +359,14 @@ class CycleRecord:
             progress=float(data.get("progress", 0.0)),
             expected_completion_at=data.get("expected_completion_at"),
             time_remaining_seconds=data.get("time_remaining_seconds"),
+            calibration_program_id=data.get("calibration_program_id"),
+            calibration_label_consumed=bool(data.get("calibration_label_consumed", False)),
+            archive_pending=bool(data.get("archive_pending", False)),
+            post_window_until=data.get("post_window_until"),
+            program_identified_at=data.get("program_identified_at"),
+            completion_detected_at=data.get("completion_detected_at"),
+            match_rejection_reason=data.get("match_rejection_reason"),
+            prediction_timeline=list(data.get("prediction_timeline", [])),
         )
 
 
@@ -447,7 +483,10 @@ class ProgramProfile:
     earliest_identification_seconds: float = 0.0
     completion_detection_latency_median: float = 0.0
     last_rebuilt_at: str | None = None
-    profile_schema_version: int = 1
+    profile_schema_version: int = 2
+    recognition_ready: bool = False
+    real_run_count: int = 0
+    feature_vector: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize for storage."""
@@ -474,6 +513,9 @@ class ProgramProfile:
             "completion_detection_latency_median": self.completion_detection_latency_median,
             "last_rebuilt_at": self.last_rebuilt_at,
             "profile_schema_version": self.profile_schema_version,
+            "recognition_ready": self.recognition_ready,
+            "real_run_count": self.real_run_count,
+            "feature_vector": self.feature_vector,
         }
 
     @classmethod
@@ -508,6 +550,9 @@ class ProgramProfile:
             ),
             last_rebuilt_at=data.get("last_rebuilt_at"),
             profile_schema_version=int(data.get("profile_schema_version", 1)),
+            recognition_ready=bool(data.get("recognition_ready", False)),
+            real_run_count=int(data.get("real_run_count", 0)),
+            feature_vector=dict(data.get("feature_vector", {})),
         )
 
 
@@ -534,6 +579,8 @@ class DetectorConfig:
     resample_interval_seconds: int = 15
     matcher_margin: float = 0.12
     rewash_delay_minutes: int = 120
+    standby_confirm_seconds: float = 60.0
+    post_completion_seconds: int = 30
 
 
 @dataclass

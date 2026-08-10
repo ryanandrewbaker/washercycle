@@ -109,11 +109,13 @@ def detector_config() -> DetectorConfig:
         start_sustain_seconds=5,
         start_min_energy_wh=0.1,
         fallback_completion_seconds=60,
-        early_completion_enabled=True,
+        early_completion_enabled=False,
         early_completion_min_score=0.75,
         door_correlation_seconds=30,
         shadow_mode=True,
         rewash_delay_minutes=120,
+        standby_confirm_seconds=60.0,
+        post_completion_seconds=30,
     )
 
 

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import timezone
+from datetime import datetime
 
-from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import PERCENTAGE, UnitOfEnergy, UnitOfTime
 from homeassistant.core import HomeAssistant
@@ -31,16 +31,10 @@ async def async_setup_entry(
             WasherCycleProgressSensor(coordinator, entry),
             WasherCycleTimeRemainingSensor(coordinator, entry),
             WasherCycleExpectedCompletionSensor(coordinator, entry),
-            WasherCycleCycleDurationSensor(coordinator, entry),
-            WasherCycleCycleEnergySensor(coordinator, entry),
             WasherCycleLastCycleDurationSensor(coordinator, entry),
             WasherCycleLastCycleEnergySensor(coordinator, entry),
             WasherCycleProgramConfidenceSensor(coordinator, entry),
             WasherCycleEtaConfidenceSensor(coordinator, entry),
-            WasherCycleCompletionLatencySensor(coordinator, entry),
-            WasherCycleTrainingRunsSensor(coordinator, entry),
-            WasherCycleRecordingDurationSensor(coordinator, entry),
-            WasherCycleRecordingEnergySensor(coordinator, entry),
         ]
     )
 
@@ -52,7 +46,6 @@ class WasherCycleSensorBase(CoordinatorEntity, SensorEntity):
 
     def __init__(self, coordinator: WasherCycleCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator)
-        self._entry_id = entry.entry_id
         self._attr_device_info = coordinator.device_info
 
     @property
@@ -74,7 +67,7 @@ class WasherCycleStateSensor(WasherCycleSensorBase):
     def native_value(self) -> str:
         if self.coordinator.detector:
             return self.coordinator.detector.cycle.public_state
-        return "unknown"
+        return "unavailable"
 
     @property
     def extra_state_attributes(self) -> dict:
@@ -85,15 +78,8 @@ class WasherCycleStateSensor(WasherCycleSensorBase):
             ATTR_WASHERCYCLE: True,
             "cycle_id": cycle.cycle_id,
             "detected_program": cycle.detected_program,
-            "selected_program": cycle.selected_program,
-            "state_reason": cycle.state_reason,
-            "program_confidence": cycle.program_confidence,
-            "eta_confidence": cycle.eta_confidence,
-            "expected_completion": cycle.expected_completion_at,
-            "completion_evidence": cycle.pending_end_evidence,
-            "source_availability": cycle.source_availability,
-            "last_transition": cycle.last_transition_at,
-            "door_correlation_pending": cycle.door_open_pending_at is not None,
+            "completion_reason": cycle.completion_reason,
+            "match_rejection_reason": cycle.match_rejection_reason,
         }
 
 
@@ -107,11 +93,11 @@ class WasherCycleProgramSensor(WasherCycleSensorBase):
         self._attr_unique_id = f"{entry.entry_id}_program"
 
     @property
-    def native_value(self) -> str | None:
+    def native_value(self) -> str:
         if self.coordinator.detector and self.coordinator.detector.cycle.detected_program:
             pid = self.coordinator.detector.cycle.detected_program
             return PROGRAM_CATALOGUE.get(pid, pid)
-        return None
+        return "Unknown"
 
 
 class WasherCycleProgressSensor(WasherCycleSensorBase):
@@ -119,7 +105,6 @@ class WasherCycleProgressSensor(WasherCycleSensorBase):
 
     _attr_translation_key = "progress"
     _attr_native_unit_of_measurement = PERCENTAGE
-    _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self, coordinator: WasherCycleCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator, entry)
@@ -161,51 +146,13 @@ class WasherCycleExpectedCompletionSensor(WasherCycleSensorBase):
         self._attr_unique_id = f"{entry.entry_id}_expected_completion"
 
     @property
-    def native_value(self) -> str | None:
-        if self.coordinator.detector:
-            return self.coordinator.detector.cycle.expected_completion_at
-        return None
-
-
-class WasherCycleCycleDurationSensor(WasherCycleSensorBase):
-    """Current cycle duration."""
-
-    _attr_translation_key = "cycle_duration"
-    _attr_device_class = SensorDeviceClass.DURATION
-    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
-
-    def __init__(self, coordinator: WasherCycleCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator, entry)
-        self._attr_unique_id = f"{entry.entry_id}_cycle_duration"
-
-    @property
-    def native_value(self) -> int | None:
-        cycle = self.coordinator.detector.cycle if self.coordinator.detector else None
-        if cycle and cycle.started_at:
-            from datetime import datetime
-
-            start = datetime.fromisoformat(cycle.started_at.replace("Z", "+00:00"))
-            return int((datetime.now(timezone.utc) - start).total_seconds())
-        return None
-
-
-class WasherCycleCycleEnergySensor(WasherCycleSensorBase):
-    """Current cycle energy."""
-
-    _attr_translation_key = "cycle_energy"
-    _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_native_unit_of_measurement = UnitOfEnergy.WATT_HOUR
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
-
-    def __init__(self, coordinator: WasherCycleCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator, entry)
-        self._attr_unique_id = f"{entry.entry_id}_cycle_energy"
-
-    @property
-    def native_value(self) -> float | None:
-        if self.coordinator.detector:
-            return round(self.coordinator.detector.cycle.accumulated_energy_wh, 2)
-        return None
+    def native_value(self) -> datetime | None:
+        if not self.coordinator.detector:
+            return None
+        raw = self.coordinator.detector.cycle.expected_completion_at
+        if not raw:
+            return None
+        return datetime.fromisoformat(raw.replace("Z", "+00:00"))
 
 
 class WasherCycleLastCycleDurationSensor(WasherCycleSensorBase):
@@ -246,6 +193,7 @@ class WasherCycleProgramConfidenceSensor(WasherCycleSensorBase):
     """Program confidence sensor."""
 
     _attr_translation_key = "program_confidence"
+    _attr_native_unit_of_measurement = PERCENTAGE
 
     def __init__(self, coordinator: WasherCycleCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator, entry)
@@ -254,7 +202,7 @@ class WasherCycleProgramConfidenceSensor(WasherCycleSensorBase):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.detector:
-            return round(self.coordinator.detector.cycle.program_confidence, 2)
+            return round(self.coordinator.detector.cycle.program_confidence * 100, 1)
         return None
 
 
@@ -271,74 +219,4 @@ class WasherCycleEtaConfidenceSensor(WasherCycleSensorBase):
     def native_value(self) -> str | None:
         if self.coordinator.detector:
             return self.coordinator.detector.cycle.eta_confidence
-        return None
-
-
-class WasherCycleCompletionLatencySensor(WasherCycleSensorBase):
-    """Completion detection latency sensor."""
-
-    _attr_translation_key = "completion_latency"
-    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
-
-    def __init__(self, coordinator: WasherCycleCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator, entry)
-        self._attr_unique_id = f"{entry.entry_id}_completion_latency"
-
-    @property
-    def native_value(self) -> float | None:
-        stats = self.coordinator.storage.get_latency_stats()
-        return round(stats.median_seconds, 1) if stats.median_seconds else None
-
-
-class WasherCycleTrainingRunsSensor(WasherCycleSensorBase):
-    """Training run count sensor."""
-
-    _attr_translation_key = "training_runs"
-
-    def __init__(self, coordinator: WasherCycleCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator, entry)
-        self._attr_unique_id = f"{entry.entry_id}_training_runs"
-
-    @property
-    def native_value(self) -> int:
-        return len(self.coordinator.storage.get_training_runs())
-
-
-class WasherCycleRecordingDurationSensor(WasherCycleSensorBase):
-    """Active recording duration."""
-
-    _attr_translation_key = "recording_duration"
-    _attr_device_class = SensorDeviceClass.DURATION
-    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
-
-    def __init__(self, coordinator: WasherCycleCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator, entry)
-        self._attr_unique_id = f"{entry.entry_id}_recording_duration"
-
-    @property
-    def native_value(self) -> int | None:
-        rec = self.coordinator.recorder.recording
-        if rec.active and rec.started_at:
-            from datetime import datetime
-
-            start = datetime.fromisoformat(rec.started_at.replace("Z", "+00:00"))
-            return int((datetime.now(timezone.utc) - start).total_seconds())
-        return None
-
-
-class WasherCycleRecordingEnergySensor(WasherCycleSensorBase):
-    """Active recording energy."""
-
-    _attr_translation_key = "recording_energy"
-    _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_native_unit_of_measurement = UnitOfEnergy.WATT_HOUR
-
-    def __init__(self, coordinator: WasherCycleCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator, entry)
-        self._attr_unique_id = f"{entry.entry_id}_recording_energy"
-
-    @property
-    def native_value(self) -> float | None:
-        if self.coordinator.recorder.is_active and self.coordinator.detector:
-            return round(self.coordinator.detector.cycle.accumulated_energy_wh, 2)
         return None

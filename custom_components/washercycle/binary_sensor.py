@@ -25,10 +25,7 @@ async def async_setup_entry(
     async_add_entities(
         [
             WasherCycleRunningBinarySensor(coordinator, entry),
-            WasherCycleRecordingBinarySensor(coordinator, entry),
             WasherCycleNeedsEmptyingBinarySensor(coordinator, entry),
-            WasherCycleNeedsRewashBinarySensor(coordinator, entry),
-            WasherCycleDataQualityBinarySensor(coordinator, entry),
         ]
     )
 
@@ -60,22 +57,7 @@ class WasherCycleRunningBinarySensor(WasherCycleBinarySensorBase):
             InternalState.RUNNING,
             InternalState.PAUSED,
             InternalState.START_CANDIDATE,
-            InternalState.END_CANDIDATE,
         )
-
-
-class WasherCycleRecordingBinarySensor(WasherCycleBinarySensorBase):
-    """Recording binary sensor."""
-
-    _attr_translation_key = "recording"
-
-    def __init__(self, coordinator: WasherCycleCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator, entry)
-        self._attr_unique_id = f"{entry.entry_id}_recording"
-
-    @property
-    def is_on(self) -> bool:
-        return self.coordinator.recorder.is_active
 
 
 class WasherCycleNeedsEmptyingBinarySensor(WasherCycleBinarySensorBase):
@@ -92,35 +74,3 @@ class WasherCycleNeedsEmptyingBinarySensor(WasherCycleBinarySensorBase):
         if not self.coordinator.detector:
             return False
         return self.coordinator.detector.cycle.internal_state == InternalState.NEEDS_EMPTYING
-
-
-class WasherCycleNeedsRewashBinarySensor(WasherCycleBinarySensorBase):
-    """Needs rewash binary sensor."""
-
-    _attr_translation_key = "needs_rewash"
-
-    def __init__(self, coordinator: WasherCycleCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator, entry)
-        self._attr_unique_id = f"{entry.entry_id}_needs_rewash"
-
-    @property
-    def is_on(self) -> bool:
-        if not self.coordinator.detector:
-            return False
-        return self.coordinator.detector.cycle.internal_state == InternalState.NEEDS_REWASH
-
-
-class WasherCycleDataQualityBinarySensor(WasherCycleBinarySensorBase):
-    """Data quality problem binary sensor."""
-
-    _attr_translation_key = "data_quality_problem"
-
-    def __init__(self, coordinator: WasherCycleCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator, entry)
-        self._attr_unique_id = f"{entry.entry_id}_data_quality_problem"
-
-    @property
-    def is_on(self) -> bool:
-        if not self.coordinator.detector:
-            return False
-        return self.coordinator.detector.cycle.sensor_data_incomplete

@@ -239,8 +239,21 @@ class WasherCycleStorage:
     def _migrate(self, data: dict[str, Any]) -> dict[str, Any]:
         """Migrate storage data to current version."""
         version = data.get("version", 1)
+        if version < 2:
+            _LOGGER.info("Migrating WasherCycle storage from v%s to v2", version)
+            data.pop("announcement_state", None)
+            for run in data.get("training_runs", []):
+                if run.get("schema_version", 1) < 2:
+                    run["anomaly_flags"] = run.get("anomaly_flags", [])
+                    if "manual" in str(run.get("note", "")).lower():
+                        run["anomaly_flags"].append("manual_timing")
+            for pid, pdata in data.get("profiles", {}).items():
+                pdata["profile_schema_version"] = 2
+                pdata.setdefault("recognition_ready", False)
+                pdata.setdefault("real_run_count", 0)
+                pdata.setdefault("feature_vector", {})
+            data["version"] = 2
         if version < STORAGE_VERSION:
-            _LOGGER.info("Migrating WasherCycle storage from v%s to v%s", version, STORAGE_VERSION)
             data["version"] = STORAGE_VERSION
         if "profiles" not in data:
             profiles = seed_profiles()

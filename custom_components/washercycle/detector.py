@@ -3,11 +3,18 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from .evidence import correlated_door_completion_threshold, score_completion_evidence
+from .completion import assess_completion
+from .const import (
+    EVENT_CYCLE_COMPLETED,
+    EVENT_CYCLE_EMPTIED,
+    EVENT_NEEDS_REWASH,
+    EVENT_PROGRAM_IDENTIFIED,
+)
 from .matcher import match_program
 from .models import (
     INTERNAL_TO_PUBLIC,
@@ -17,13 +24,11 @@ from .models import (
     InternalState,
     ProgramMatchState,
     PublicState,
+    SampleSource,
     StateTransition,
 )
+from .preset import APPLIANCE_PRESET
 from .progress import compute_progress
-
-
-def _iso_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
 
 
 def _parse_ts(ts: str) -> datetime:
@@ -36,6 +41,7 @@ class DetectorEvent:
 
     name: str
     data: dict[str, Any] = field(default_factory=dict)
+    shadow: bool = False
 
 
 @dataclass
@@ -45,7 +51,7 @@ class DetectorResult:
     cycle: CycleRecord
     events: list[DetectorEvent] = field(default_factory=list)
     transitions: list[StateTransition] = field(default_factory=list)
-    announcement_requests: list[str] = field(default_factory=list)
+    finalize_archive: bool = False
 
 
 @dataclass
@@ -62,6 +68,7 @@ class DetectorInput:
     energy_available: bool = True
     door_available: bool = True
     movement_available: bool = True
+    source: SampleSource = SampleSource.OTHER
 
 
 class CycleDetector:
@@ -73,6 +80,8 @@ class CycleDetector:
         cycle: CycleRecord | None = None,
         profiles: dict | None = None,
         pending_program: str = "auto",
+        *,
+        now_fn: Callable[[], datetime] | None = None,
     ) -> None:
         self.config = config
         self.cycle = cycle or CycleRecord(cycle_id=str(uuid.uuid4()))
@@ -81,6 +90,8 @@ class CycleDetector:
         self.transitions: list[StateTransition] = []
         self._energy_at_last_check: float | None = None
         self._energy_stable_since: datetime | None = None
+        self._last_power_sample: tuple[str, float] | None = None
+        self._now_fn = now_fn or (lambda: datetime.now(timezone.utc))
 
     def restore(self, cycle: CycleRecord, pending_program: str = "auto") -> None:
         """Restore detector from persisted cycle."""
@@ -89,13 +100,13 @@ class CycleDetector:
         self.pending_program = pending_program
 
     def process(self, inp: DetectorInput) -> DetectorResult:
-        """Process one normalised input."""
+        """Process one normalised input from a source entity."""
         events: list[DetectorEvent] = []
-        announcements: list[str] = []
         now = inp.timestamp
 
         self._update_availability(inp)
-        self._append_trace(inp)
+        if inp.source == SampleSource.POWER and inp.power_w is not None:
+            self._append_power_trace(inp)
 
         if inp.energy_wh is not None:
             if self._energy_at_last_check is not None:
@@ -105,36 +116,94 @@ class CycleDetector:
                 else:
                     self._energy_stable_since = None
             self._energy_at_last_check = inp.energy_wh
+            if inp.energy_wh is not None and self.cycle.energy_at_start_wh is not None:
+                self.cycle.accumulated_energy_wh = max(
+                    0.0, inp.energy_wh - self.cycle.energy_at_start_wh
+                )
 
         state = InternalState(self.cycle.internal_state)
 
         if state == InternalState.IDLE:
-            events, announcements = self._handle_idle(inp, events, announcements)
+            events = self._handle_idle(inp, events)
         elif state == InternalState.START_CANDIDATE:
-            events, announcements = self._handle_start_candidate(inp, events, announcements)
+            events = self._handle_start_candidate(inp, events)
         elif state in (InternalState.RUNNING, InternalState.PAUSED):
-            events, announcements = self._handle_running(inp, events, announcements)
-        elif state == InternalState.END_CANDIDATE:
-            events, announcements = self._handle_end_candidate(inp, events, announcements)
+            events = self._handle_running(inp, events)
         elif state == InternalState.NEEDS_EMPTYING:
-            events, announcements = self._handle_needs_emptying(inp, events, announcements)
+            events = self._handle_needs_emptying(inp, events)
         elif state == InternalState.NEEDS_REWASH:
-            events, announcements = self._handle_needs_rewash(inp, events, announcements)
+            events = self._handle_needs_rewash(inp, events)
 
         if self.cycle.door_open_pending_at and state not in (
             InternalState.IDLE,
             InternalState.NEEDS_EMPTYING,
             InternalState.NEEDS_REWASH,
         ):
-            events, announcements = self._handle_door_correlation(inp, events, announcements)
+            events = self._handle_door_correlation(inp, events)
 
-        self._update_matching(now)
+        if state in (
+            InternalState.RUNNING,
+            InternalState.PAUSED,
+            InternalState.NEEDS_EMPTYING,
+        ) or self.cycle.archive_pending:
+            events = self._handle_door_emptying(inp, events)
+
+        self._update_matching(now, events)
         return DetectorResult(
             cycle=self.cycle,
             events=events,
             transitions=self.transitions[-10:],
-            announcement_requests=announcements,
+            finalize_archive=False,
         )
+
+    def tick(self, now: datetime) -> DetectorResult:
+        """Advance timers only — does not append trace samples."""
+        events: list[DetectorEvent] = []
+        finalize = False
+        state = InternalState(self.cycle.internal_state)
+
+        if state == InternalState.START_CANDIDATE and self.cycle.start_candidate_at:
+            candidate_start = _parse_ts(self.cycle.start_candidate_at)
+            elapsed = (now - candidate_start).total_seconds()
+            if elapsed >= self.config.start_sustain_seconds:
+                self.cycle.started_at = self.cycle.start_candidate_at
+                self._consume_calibration_label()
+                evt = self._transition(
+                    InternalState.RUNNING,
+                    "cycle_confirmed_start_tick",
+                    now,
+                    event="washercycle_cycle_started",
+                    event_data=self._cycle_event_data(),
+                )
+                if evt:
+                    events.append(evt)
+
+        if state in (InternalState.RUNNING, InternalState.PAUSED):
+            events = self._check_completion(now, events, power_w=None)
+
+        if state == InternalState.NEEDS_EMPTYING:
+            events = self._handle_needs_emptying_tick(now, events)
+
+        if self.cycle.archive_pending and self.cycle.post_window_until:
+            if now >= _parse_ts(self.cycle.post_window_until):
+                finalize = True
+
+        self._update_matching(now, events)
+        return DetectorResult(
+            cycle=self.cycle,
+            events=events,
+            transitions=self.transitions[-10:],
+            finalize_archive=finalize,
+        )
+
+    def _consume_calibration_label(self) -> None:
+        if self.pending_program != "auto" and not self.cycle.calibration_label_consumed:
+            self.cycle.calibration_program_id = self.pending_program
+            self.cycle.calibration_label_consumed = True
+            self.cycle.selected_program = self.pending_program
+            self.cycle.detected_program = self.pending_program
+            self.cycle.program_source = "calibration"
+            self.cycle.program_match_state = ProgramMatchState.MANUAL
 
     def _transition(
         self,
@@ -149,7 +218,7 @@ class CycleDetector:
         if from_state == to_state:
             return None
         self.cycle.internal_state = to_state
-        self.cycle.public_state = INTERNAL_TO_PUBLIC.get(to_state, PublicState.UNKNOWN)
+        self.cycle.public_state = INTERNAL_TO_PUBLIC.get(to_state, PublicState.UNAVAILABLE)
         self.cycle.state_reason = reason
         self.cycle.last_transition_at = now.isoformat()
         self.transitions.append(
@@ -163,18 +232,21 @@ class CycleDetector:
         )
         if event and not self.cycle.events_emitted.get(event):
             self.cycle.events_emitted[event] = True
-            return DetectorEvent(name=event, data=event_data or {})
+            shadow = self.config.shadow_mode
+            return DetectorEvent(
+                name=event,
+                data=event_data or {},
+                shadow=shadow,
+            )
         return None
 
-    def _handle_idle(
-        self, inp: DetectorInput, events: list, announcements: list
-    ) -> tuple[list, list]:
+    def _handle_idle(self, inp: DetectorInput, events: list) -> list:
         if inp.power_w is None or not inp.power_available:
-            return events, announcements
+            return events
         if inp.power_w < self.config.start_power_w:
-            return events, announcements
+            return events
         if inp.door_open is True:
-            return events, announcements
+            return events
 
         now = inp.timestamp
         self.cycle.start_candidate_at = now.isoformat()
@@ -184,67 +256,50 @@ class CycleDetector:
         )
         if evt:
             events.append(evt)
-        return events, announcements
+        return events
 
-    def _handle_start_candidate(
-        self, inp: DetectorInput, events: list, announcements: list
-    ) -> tuple[list, list]:
+    def _handle_start_candidate(self, inp: DetectorInput, events: list) -> list:
         now = inp.timestamp
         if not self.cycle.start_candidate_at:
-            return events, announcements
+            return events
 
         candidate_start = _parse_ts(self.cycle.start_candidate_at)
         elapsed = (now - candidate_start).total_seconds()
 
-        if inp.door_open is True or (inp.power_w is not None and inp.power_w < self.config.start_power_w):
+        if inp.door_open is True or (
+            inp.power_w is not None and inp.power_w < self.config.start_power_w
+        ):
             if elapsed < self.config.start_sustain_seconds:
                 evt = self._transition(InternalState.IDLE, "start_candidate_cancelled", now)
                 self.cycle.start_candidate_at = None
                 if evt:
                     events.append(evt)
-                return events, announcements
+                return events
 
         if inp.power_w is not None and inp.power_w >= self.config.start_power_w:
             if elapsed >= self.config.start_sustain_seconds:
-                energy_ok = True
-                if inp.energy_wh is not None and self.cycle.energy_at_start_wh is not None:
-                    delta = inp.energy_wh - self.cycle.energy_at_start_wh
-                    energy_ok = delta >= self.config.start_min_energy_wh or elapsed >= self.config.start_sustain_seconds * 2
-
-                if energy_ok or inp.energy_wh is None:
-                    self.cycle.started_at = now.isoformat()
-                    selected = self.pending_program if self.pending_program != "auto" else "auto"
-                    self.cycle.selected_program = selected
-                    if selected != "auto":
-                        self.cycle.detected_program = selected
-                        self.cycle.program_source = "manual"
-                        self.cycle.program_match_state = ProgramMatchState.MANUAL
+                self.cycle.started_at = self.cycle.start_candidate_at
+                if inp.energy_wh is not None:
                     self.cycle.energy_at_start_wh = inp.energy_wh
-                    evt = self._transition(
-                        InternalState.RUNNING,
-                        "cycle_confirmed_start",
-                        now,
-                        event="washercycle_cycle_started",
-                        event_data=self._cycle_event_data(),
-                    )
-                    if evt:
-                        events.append(evt)
-        return events, announcements
+                self._consume_calibration_label()
+                evt = self._transition(
+                    InternalState.RUNNING,
+                    "cycle_confirmed_start",
+                    now,
+                    event="washercycle_cycle_started",
+                    event_data=self._cycle_event_data(),
+                )
+                if evt:
+                    events.append(evt)
+        return events
 
-    def _handle_running(
-        self, inp: DetectorInput, events: list, announcements: list
-    ) -> tuple[list, list]:
+    def _handle_running(self, inp: DetectorInput, events: list) -> list:
         now = inp.timestamp
         state = InternalState(self.cycle.internal_state)
 
         if inp.power_w is not None and inp.power_w < self.config.standby_power_w:
             if not self.cycle.standby_since:
                 self.cycle.standby_since = now.isoformat()
-            standby_elapsed = (now - _parse_ts(self.cycle.standby_since)).total_seconds()
-            if standby_elapsed >= self.config.fallback_completion_seconds:
-                return self._complete_cycle(
-                    now, "fallback_timeout", events, announcements, immediate_empty=False
-                )
         else:
             self.cycle.standby_since = None
 
@@ -272,260 +327,264 @@ class CycleDetector:
             self.cycle.door_open_pending_at = now.isoformat()
             self.cycle.door_correlation_class = DoorCorrelationClass.PENDING.value
 
-        evidence = self._score_evidence(now, inp)
-        self.cycle.pending_end_evidence = evidence.to_dict()
+        return self._check_completion(now, events, power_w=inp.power_w)
 
-        if self.config.early_completion_enabled and evidence.total >= self.config.early_completion_min_score:
-            if not evidence.contradictory:
-                self.cycle.end_candidate_at = now.isoformat()
-                evt = self._transition(InternalState.END_CANDIDATE, "evidence_threshold_met", now)
-                if evt:
-                    events.append(evt)
+    def _check_completion(
+        self, now: datetime, events: list, *, power_w: float | None
+    ) -> list:
+        if not self.cycle.started_at:
+            return events
 
-        return events, announcements
+        elapsed = (now - _parse_ts(self.cycle.started_at)).total_seconds()
+        profile = None
+        if self.cycle.detected_program:
+            profile = self.profiles.get(self.cycle.detected_program)
 
-    def _handle_end_candidate(
-        self, inp: DetectorInput, events: list, announcements: list
-    ) -> tuple[list, list]:
-        now = inp.timestamp
-        evidence = self._score_evidence(now, inp)
-        self.cycle.pending_end_evidence = evidence.to_dict()
+        assessment = assess_completion(
+            now=now,
+            started_at=self.cycle.started_at,
+            standby_since=self.cycle.standby_since,
+            current_power_w=power_w,
+            elapsed_seconds=elapsed,
+            energy_wh=self.cycle.accumulated_energy_wh,
+            trace=self.cycle.trace_compact,
+            profile=profile,
+            config=self.config,
+            standby_confirm_seconds=self.config.standby_confirm_seconds,
+        )
 
-        if evidence.contradictory:
-            self.cycle.end_candidate_at = None
-            self.cycle.standby_since = None
-            evt = self._transition(
-                InternalState.RUNNING if inp.power_w and inp.power_w >= self.config.standby_power_w else InternalState.PAUSED,
-                "end_candidate_cancelled",
-                now,
-            )
-            if evt:
-                events.append(evt)
-            return events, announcements
-
-        if not self.cycle.end_candidate_at:
-            return events, announcements
-
-        candidate_elapsed = (now - _parse_ts(self.cycle.end_candidate_at)).total_seconds()
-        if candidate_elapsed >= self.config.early_confirm_seconds:
-            if evidence.total >= 0.65:
-                return self._complete_cycle(
-                    now, "early_evidence_confirmed", events, announcements
-                )
-
-        if inp.power_w is not None and inp.power_w < self.config.standby_power_w:
-            if self.cycle.standby_since:
-                standby_elapsed = (now - _parse_ts(self.cycle.standby_since)).total_seconds()
-                if standby_elapsed >= self.config.fallback_completion_seconds:
-                    return self._complete_cycle(
-                        now, "fallback_timeout", events, announcements
-                    )
-
-        return events, announcements
-
-    def _handle_needs_emptying(
-        self, inp: DetectorInput, events: list, announcements: list
-    ) -> tuple[list, list]:
-        now = inp.timestamp
-
-        if inp.door_open is True:
-            return self._empty_cycle(now, events, announcements)
-
-        if self.cycle.rewash_due_at and now >= _parse_ts(self.cycle.rewash_due_at):
-            evt = self._transition(
-                InternalState.NEEDS_REWASH,
-                "rewash_delay_expired",
-                now,
-                event="washercycle_needs_rewash",
-                event_data=self._cycle_event_data(),
-            )
-            if evt:
-                events.append(evt)
-            announcements.append("rewash")
-
-        return events, announcements
-
-    def _handle_needs_rewash(
-        self, inp: DetectorInput, events: list, announcements: list
-    ) -> tuple[list, list]:
-        now = inp.timestamp
-        if inp.door_open is True:
-            return self._empty_cycle(now, events, announcements)
-        return events, announcements
-
-    def _handle_door_correlation(
-        self, inp: DetectorInput, events: list, announcements: list
-    ) -> tuple[list, list]:
-        now = inp.timestamp
-        if not self.cycle.door_open_pending_at:
-            return events, announcements
-
-        door_open = _parse_ts(self.cycle.door_open_pending_at)
-        window = self.config.door_correlation_seconds
-        if (now - door_open).total_seconds() > window:
-            self.cycle.door_correlation_class = DoorCorrelationClass.MID_CYCLE.value
-            self.cycle.door_open_pending_at = None
-            return events, announcements
-
-        evidence = self._score_evidence(now, inp)
-        threshold = correlated_door_completion_threshold()
-        if evidence.total >= threshold and not evidence.contradictory:
-            self.cycle.door_correlation_class = DoorCorrelationClass.IMMEDIATE_EMPTY.value
+        if assessment.confirmed:
             return self._complete_cycle(
                 now,
-                "door_correlated_completion",
+                assessment.reason,
                 events,
-                announcements,
-                immediate_empty=True,
+                backdated=assessment.backdated_completed_at,
             )
-
-        return events, announcements
+        return events
 
     def _complete_cycle(
         self,
         now: datetime,
         reason: str,
         events: list,
-        announcements: list,
         *,
+        backdated: datetime | None = None,
         immediate_empty: bool = False,
-    ) -> tuple[list, list]:
-        self.cycle.completed_at = now.isoformat()
+    ) -> list:
+        backdated_at = backdated or now
+        self.cycle.completed_at = backdated_at.isoformat()
+        self.cycle.completion_detected_at = now.isoformat()
         self.cycle.completion_reason = reason
         self.cycle.immediately_emptied = immediate_empty
+        self.cycle.completion_detection_latency_seconds = (
+            now - backdated_at
+        ).total_seconds()
 
-        evt = DetectorEvent(
-            name="washercycle_cycle_completed",
-            data=self._cycle_event_data(
-                completion_reason=reason,
-                immediately_emptied=immediate_empty,
-            ),
+        evt_data = self._cycle_event_data(
+            completion_reason=reason,
+            immediately_emptied=immediate_empty,
         )
-        if not self.cycle.events_emitted.get("washercycle_cycle_completed"):
-            self.cycle.events_emitted["washercycle_cycle_completed"] = True
-            events.append(evt)
+        if not self.cycle.events_emitted.get(EVENT_CYCLE_COMPLETED):
+            self.cycle.events_emitted[EVENT_CYCLE_COMPLETED] = True
+            events.append(
+                DetectorEvent(
+                    name=EVENT_CYCLE_COMPLETED,
+                    data=evt_data,
+                    shadow=self.config.shadow_mode,
+                )
+            )
+
+        self.cycle.archive_pending = True
+        post_seconds = int(APPLIANCE_PRESET["post_completion_seconds"])
+        self.cycle.post_window_until = (
+            now + timedelta(seconds=post_seconds)
+        ).isoformat()
+        self.cycle.progress = 100.0
 
         if immediate_empty:
             self.cycle.door_correlation_class = DoorCorrelationClass.IMMEDIATE_EMPTY.value
-            empty_evt = DetectorEvent(
-                name="washercycle_cycle_emptied",
-                data=self._cycle_event_data(immediately_emptied=True),
-            )
-            if not self.cycle.events_emitted.get("washercycle_cycle_emptied"):
-                self.cycle.events_emitted["washercycle_cycle_emptied"] = True
-                events.append(empty_evt)
+            if not self.cycle.events_emitted.get(EVENT_CYCLE_EMPTIED):
+                self.cycle.events_emitted[EVENT_CYCLE_EMPTIED] = True
+                events.append(
+                    DetectorEvent(
+                        name=EVENT_CYCLE_EMPTIED,
+                        data=self._cycle_event_data(immediately_emptied=True),
+                        shadow=self.config.shadow_mode,
+                    )
+                )
             self._transition(InternalState.IDLE, "completed_and_emptied", now)
-            self.cycle.progress = 100.0
-            return events, announcements
+            self.cycle.archive_pending = False
+            return events
 
         self.cycle.needs_emptying_at = now.isoformat()
         rewash_due = now + timedelta(minutes=self.config.rewash_delay_minutes)
         self.cycle.rewash_due_at = rewash_due.isoformat()
         self._transition(InternalState.NEEDS_EMPTYING, reason, now)
-        self.cycle.progress = 100.0
+        return events
 
-        if not self.config.shadow_mode:
-            announcements.append("completion")
+    def _handle_needs_emptying(self, inp: DetectorInput, events: list) -> list:
+        return self._handle_needs_emptying_tick(inp.timestamp, events)
 
-        return events, announcements
+    def _handle_needs_emptying_tick(self, now: datetime, events: list) -> list:
+        if self.cycle.rewash_due_at and now >= _parse_ts(self.cycle.rewash_due_at):
+            evt = self._transition(
+                InternalState.NEEDS_REWASH,
+                "rewash_delay_expired",
+                now,
+                event=EVENT_NEEDS_REWASH,
+                event_data=self._cycle_event_data(),
+            )
+            if evt:
+                events.append(evt)
+        return events
 
-    def _empty_cycle(
-        self, now: datetime, events: list, announcements: list
-    ) -> tuple[list, list]:
+    def _handle_needs_rewash(self, inp: DetectorInput, events: list) -> list:
+        return events
+
+    def _handle_door_emptying(self, inp: DetectorInput, events: list) -> list:
+        if inp.door_open is not True:
+            return events
+        state = InternalState(self.cycle.internal_state)
+        if state not in (
+            InternalState.NEEDS_EMPTYING,
+            InternalState.NEEDS_REWASH,
+        ) and not self.cycle.archive_pending:
+            return events
+        return self._empty_cycle(inp.timestamp, events)
+
+    def _handle_door_correlation(
+        self, inp: DetectorInput, events: list
+    ) -> list:
+        now = inp.timestamp
+        if not self.cycle.door_open_pending_at:
+            return events
+
+        door_open = _parse_ts(self.cycle.door_open_pending_at)
+        window = self.config.door_correlation_seconds
+        if (now - door_open).total_seconds() > window:
+            self.cycle.door_correlation_class = DoorCorrelationClass.MID_CYCLE.value
+            self.cycle.door_open_pending_at = None
+            return events
+
+        if inp.power_w is not None and inp.power_w < self.config.standby_power_w:
+            if self.cycle.standby_since:
+                standby_elapsed = (now - _parse_ts(self.cycle.standby_since)).total_seconds()
+                if standby_elapsed >= self.config.standby_confirm_seconds:
+                    self.cycle.door_correlation_class = (
+                        DoorCorrelationClass.IMMEDIATE_EMPTY.value
+                    )
+                    return self._complete_cycle(
+                        now,
+                        "door_correlated_completion",
+                        events,
+                        backdated=_parse_ts(self.cycle.standby_since),
+                        immediate_empty=True,
+                    )
+
+        return events
+
+    def _empty_cycle(self, now: datetime, events: list) -> list:
         self.cycle.door_correlation_class = DoorCorrelationClass.ORDINARY_UNLOAD.value
-        evt = DetectorEvent(
-            name="washercycle_cycle_emptied",
-            data=self._cycle_event_data(),
-        )
-        if not self.cycle.events_emitted.get("washercycle_cycle_emptied"):
-            self.cycle.events_emitted["washercycle_cycle_emptied"] = True
-            events.append(evt)
+        if not self.cycle.events_emitted.get(EVENT_CYCLE_EMPTIED):
+            self.cycle.events_emitted[EVENT_CYCLE_EMPTIED] = True
+            events.append(
+                DetectorEvent(
+                    name=EVENT_CYCLE_EMPTIED,
+                    data=self._cycle_event_data(),
+                    shadow=self.config.shadow_mode,
+                )
+            )
+        self.cycle.rewash_due_at = None
         self._transition(InternalState.IDLE, "door_opened_emptied", now)
-        return events, announcements
+        return events
 
     def force_empty(self, now: datetime | None = None) -> DetectorResult:
-        """Manually force cycle to empty/idle."""
-        now = now or datetime.now(timezone.utc)
+        """Diagnostic-only: manually force cycle to empty/idle."""
+        now = now or self._now_fn()
         events = []
-        evt = DetectorEvent(name="washercycle_cycle_emptied", data=self._cycle_event_data())
-        self.cycle.events_emitted["washercycle_cycle_emptied"] = True
-        events.append(evt)
+        if not self.cycle.events_emitted.get(EVENT_CYCLE_EMPTIED):
+            self.cycle.events_emitted[EVENT_CYCLE_EMPTIED] = True
+            events.append(
+                DetectorEvent(
+                    name=EVENT_CYCLE_EMPTIED,
+                    data=self._cycle_event_data(),
+                    shadow=True,
+                )
+            )
         self._transition(InternalState.IDLE, "manual_force_empty", now)
         return DetectorResult(cycle=self.cycle, events=events)
 
-    def _score_evidence(self, now: datetime, inp: DetectorInput) -> Any:
-        elapsed = 0.0
-        if self.cycle.started_at:
-            elapsed = (now - _parse_ts(self.cycle.started_at)).total_seconds()
-
-        profile = None
-        if self.cycle.detected_program:
-            profile = self.profiles.get(self.cycle.detected_program)
-
-        energy_stable = False
-        if self._energy_stable_since:
-            energy_stable = (now - self._energy_stable_since).total_seconds() >= 60
-
-        energy_wh = 0.0
-        if inp.energy_wh is not None and self.cycle.energy_at_start_wh is not None:
-            energy_wh = max(0.0, inp.energy_wh - self.cycle.energy_at_start_wh)
-
-        return score_completion_evidence(
-            now=now,
-            elapsed_seconds=elapsed,
-            current_power_w=inp.power_w,
-            movement_active=inp.movement,
-            energy_wh=energy_wh,
-            energy_stable=energy_stable,
-            trace=self.cycle.trace_compact,
-            profile=profile,
-            config=self.config,
-            movement_available=inp.movement_available,
-        )
-
-    def _update_matching(self, now: datetime) -> None:
-        if InternalState(self.cycle.internal_state) not in (
+    def _update_matching(self, now: datetime, events: list) -> None:
+        state = InternalState(self.cycle.internal_state)
+        if state not in (
             InternalState.RUNNING,
             InternalState.PAUSED,
-            InternalState.END_CANDIDATE,
+            InternalState.NEEDS_EMPTYING,
         ):
             return
         if not self.cycle.started_at:
             return
 
         elapsed = (now - _parse_ts(self.cycle.started_at)).total_seconds()
-        energy_wh = self.cycle.accumulated_energy_wh
+        manual = None
+        if self.cycle.program_source in ("manual", "calibration"):
+            manual = self.cycle.detected_program or self.cycle.calibration_program_id
 
-        manual = self.cycle.selected_program if self.cycle.program_source == "manual" else None
-        pid, conf, match_state, _ = match_program(
+        result = match_program(
+            started_at=self.cycle.started_at,
+            now=now,
             elapsed_seconds=elapsed,
-            energy_wh=energy_wh,
+            energy_wh=self.cycle.accumulated_energy_wh,
             trace=self.cycle.trace_compact,
             profiles=self.profiles,
             config=self.config,
             manual_program=manual,
             current_match=self.cycle.detected_program,
             current_state=ProgramMatchState(self.cycle.program_match_state),
+            program_identified_emitted=self.cycle.events_emitted.get(
+                EVENT_PROGRAM_IDENTIFIED, False
+            ),
         )
 
-        if pid:
-            self.cycle.detected_program = pid
-        self.cycle.program_confidence = conf
-        self.cycle.program_match_state = match_state
+        if result.program_id:
+            self.cycle.detected_program = result.program_id
+        self.cycle.program_confidence = result.confidence
+        self.cycle.program_match_state = result.match_state
+        self.cycle.match_rejection_reason = result.rejection_reason
 
-        profile = self.profiles.get(pid) if pid else None
+        self.cycle.prediction_timeline.append(
+            {
+                "elapsed_s": elapsed,
+                "program_id": result.program_id,
+                "confidence": result.confidence,
+                "match_state": result.match_state,
+            }
+        )
+
+        if result.emit_identified and result.program_id:
+            self.cycle.program_identified_at = now.isoformat()
+            self.cycle.events_emitted[EVENT_PROGRAM_IDENTIFIED] = True
+            events.append(
+                DetectorEvent(
+                    name=EVENT_PROGRAM_IDENTIFIED,
+                    data=self._cycle_event_data(),
+                    shadow=self.config.shadow_mode,
+                )
+            )
+
+        profile = self.profiles.get(result.program_id) if result.program_id else None
         progress, remaining, expected, eta_conf = compute_progress(
             started_at=self.cycle.started_at,
             now=now,
             profile=profile,
-            program_match_state=match_state,
+            program_match_state=result.match_state,
             current_progress=self.cycle.progress,
             internal_state=self.cycle.internal_state,
             immediately_emptied=self.cycle.immediately_emptied,
         )
         self.cycle.progress = progress
         self.cycle.time_remaining_seconds = remaining
-        self.cycle.expected_completion_at = expected
+        self.cycle.expected_completion_at = expected.isoformat() if expected else None
         self.cycle.eta_confidence = eta_conf
 
     def _update_availability(self, inp: DetectorInput) -> None:
@@ -535,12 +594,24 @@ class CycleDetector:
             "door": inp.door_available,
             "movement": inp.movement_available,
         }
-        if not all([inp.power_available, inp.energy_available]):
+        if not inp.power_available:
             self.cycle.sensor_data_incomplete = True
 
-    def _append_trace(self, inp: DetectorInput) -> None:
+    def _append_power_trace(self, inp: DetectorInput) -> None:
+        if inp.power_w is None:
+            return
+        ts_key = inp.timestamp.isoformat()
+        sample_key = (ts_key, inp.power_w)
+        if self._last_power_sample == sample_key:
+            return
+        self._last_power_sample = sample_key
+
+        last = self.cycle.trace_compact[-1] if self.cycle.trace_compact else None
+        if last and last.get("power_w") == inp.power_w and last.get("timestamp") == ts_key:
+            return
+
         point = {
-            "timestamp": inp.timestamp.isoformat(),
+            "timestamp": ts_key,
             "power_w": inp.power_w,
             "energy_wh": inp.energy_wh,
             "movement": inp.movement,
@@ -550,15 +621,11 @@ class CycleDetector:
         if len(self.cycle.trace_compact) > 2000:
             self.cycle.trace_compact = self.cycle.trace_compact[-2000:]
 
-        if inp.energy_wh is not None and self.cycle.energy_at_start_wh is not None:
-            self.cycle.accumulated_energy_wh = max(
-                0.0, inp.energy_wh - self.cycle.energy_at_start_wh
-            )
-
     def _cycle_event_data(self, **extra: Any) -> dict[str, Any]:
         from .const import PROGRAM_CATALOGUE
 
         pid = self.cycle.detected_program or self.cycle.selected_program
+        expected = self.cycle.expected_completion_at
         return {
             "cycle_id": self.cycle.cycle_id,
             "program_id": pid,
@@ -567,11 +634,11 @@ class CycleDetector:
             "program_confidence": self.cycle.program_confidence,
             "eta_confidence": self.cycle.eta_confidence,
             "started_at": self.cycle.started_at,
+            "expected_completion_at": expected,
             "completed_at": self.cycle.completed_at,
             "energy_wh": self.cycle.accumulated_energy_wh,
             "completion_reason": self.cycle.completion_reason,
             "immediately_emptied": self.cycle.immediately_emptied,
-            "door_opened_at": self.cycle.door_open_pending_at,
             "restart_recovered": self.cycle.restart_recovered,
             "sensor_data_incomplete": self.cycle.sensor_data_incomplete,
             **extra,

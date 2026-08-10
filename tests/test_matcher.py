@@ -1,56 +1,54 @@
-"""Tests for matcher."""
+"""Tests for program matcher."""
 
 from __future__ import annotations
+
+from datetime import datetime, timezone
 
 from custom_components.washercycle.matcher import match_program
 from custom_components.washercycle.models import DetectorConfig, ProgramMatchState, ProgramProfile
 
 
 def test_unknown_when_no_profiles():
-    config = DetectorConfig(min_runs_recognition=3)
-    pid, conf, state, _ = match_program(
+    config = DetectorConfig()
+    started = datetime(2026, 7, 31, 10, 0, tzinfo=timezone.utc)
+    result = match_program(
+        started_at=started.isoformat(),
+        now=started,
         elapsed_seconds=600,
         energy_wh=100,
         trace=[],
         profiles={},
         config=config,
     )
-    assert state == ProgramMatchState.UNKNOWN
+    assert result.match_state == ProgramMatchState.UNKNOWN
+    assert result.rejection_reason == "insufficient_real_runs"
 
 
-def test_confident_match_with_margin():
-    config = DetectorConfig(min_runs_recognition=1, matcher_margin=0.12)
+def test_abstains_without_recognition_ready_profiles():
+    config = DetectorConfig(min_runs_recognition=1)
+    started = datetime(2026, 7, 31, 10, 0, tzinfo=timezone.utc)
     profiles = {
         "daily_wash": ProgramProfile(
             program_id="daily_wash",
             display_name="Daily Wash",
             confirmed_run_count=5,
+            recognition_ready=False,
+            real_run_count=0,
             duration_median_seconds=3600,
             duration_mad_seconds=300,
-            energy_median_wh=500,
-            energy_mad_wh=50,
-            earliest_identification_seconds=300,
-            representative_trace=[{"w": 200}] * 20,
-        ),
-        "quick_wash": ProgramProfile(
-            program_id="quick_wash",
-            display_name="Quick Wash",
-            confirmed_run_count=5,
-            duration_median_seconds=1800,
-            duration_mad_seconds=200,
-            energy_median_wh=200,
-            energy_mad_wh=30,
-            earliest_identification_seconds=300,
-            representative_trace=[{"w": 50}] * 20,
-        ),
+            energy_median_wh=400,
+            representative_trace=[{"offset_s": 0, "w": 50}],
+            earliest_identification_seconds=100,
+        )
     }
-    trace = [{"power_w": 200, "timestamp": "2026-01-01T10:00:00+00:00"}] * 20
-    pid, conf, state, candidates = match_program(
-        elapsed_seconds=1800,
-        energy_wh=480,
-        trace=trace,
+    result = match_program(
+        started_at=started.isoformat(),
+        now=started,
+        elapsed_seconds=1200,
+        energy_wh=200,
+        trace=[{"timestamp": started.isoformat(), "power_w": 50}],
         profiles=profiles,
         config=config,
     )
-    assert pid == "daily_wash"
-    assert state in (ProgramMatchState.CONFIDENT, ProgramMatchState.TENTATIVE)
+    assert result.rejection_reason == "insufficient_real_runs"
+    assert result.emit_identified is False

@@ -7,7 +7,7 @@ MANUFACTURER = "Samsung"
 MODEL = "WW75J54E0IW/SA"
 DEFAULT_DEVICE_NAME = "WasherCycle"
 
-STORAGE_VERSION = 1
+STORAGE_VERSION = 2
 STORAGE_KEY = f"{DOMAIN}.storage"
 
 # Default source entity IDs (preselect in config flow)
@@ -116,6 +116,8 @@ OPT_TARGET_LATENCY_SECONDS = "target_latency_seconds"
 OPT_MAX_STALE_SECONDS = "max_stale_seconds"
 OPT_SHADOW_MODE = "shadow_mode"
 OPT_LEGACY_STATUS_MIRROR = "legacy_status_mirror"
+OPT_REWASH_DELAY_MINUTES = "rewash_delay_minutes"
+OPT_ADVANCED_DIAGNOSTICS = "advanced_diagnostics"
 OPT_MIN_RUNS_RECOGNITION = "min_runs_recognition"
 OPT_MIN_RUNS_ROBUST = "min_runs_robust"
 OPT_RESAMPLE_INTERVAL_SECONDS = "resample_interval_seconds"
@@ -129,7 +131,6 @@ OPT_COMPLETION_ANNOUNCEMENTS_ENABLED = "completion_announcements_enabled"
 OPT_REWASH_ANNOUNCEMENTS_ENABLED = "rewash_announcements_enabled"
 OPT_COMPLETION_SPEAKERS = "completion_speakers"
 OPT_REWASH_SPEAKERS = "rewash_speakers"
-OPT_REWASH_DELAY_MINUTES = "rewash_delay_minutes"
 OPT_COMPLETION_MESSAGE = "completion_message"
 OPT_REWASH_MESSAGE = "rewash_message"
 OPT_SUPPRESS_IF_DOOR_OPEN = "suppress_if_door_open"
@@ -141,7 +142,7 @@ OPT_QUIET_HOURS_END = "quiet_hours_end"
 OPT_QUIET_HOURS_POLICY = "quiet_hours_policy"
 OPT_ANNOUNCEMENT_RETRY_COUNT = "announcement_retry_count"
 
-PLATFORMS = ["sensor", "binary_sensor", "select", "button"]
+PLATFORMS = ["sensor", "binary_sensor", "select"]
 
 SERVICE_START_RECORDING = "start_recording"
 SERVICE_MARK_COMPLETE = "mark_complete"
@@ -154,6 +155,7 @@ SERVICE_ADJUST_RUN_COMPLETE = "adjust_run_complete"
 SERVICE_REBUILD_PROFILES = "rebuild_profiles"
 SERVICE_EXPORT_RUN = "export_run"
 SERVICE_DELETE_RUN = "delete_run"
+SERVICE_RELABEL_LAST_CYCLE = "relabel_last_cycle"
 SERVICE_FORCE_EMPTY = "force_empty"
 SERVICE_EXPORT_DIAGNOSTICS = "export_diagnostics"
 

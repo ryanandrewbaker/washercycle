@@ -8,7 +8,7 @@ from typing import Any
 
 from .const import PROGRAM_CATALOGUE
 from .models import ActiveRecording, TrainingRun
-from .profiles import _resample_power
+from .resample import parse_ts, resample_trace
 from .stats import median
 
 
@@ -160,7 +160,10 @@ class TrainingRecorder:
         standby_vals = [p["w"] for p in power[-20:] if p.get("w") is not None]
         standby = median(standby_vals) if standby_vals else 0.0
 
-        resampled = _resample_power(power, resample_interval)
+        resampled = []
+        if power:
+            origin = parse_ts(power[0]["t"])
+            resampled = resample_trace(power, origin=origin, interval_s=resample_interval)
 
         latency = None
         if auto_complete:

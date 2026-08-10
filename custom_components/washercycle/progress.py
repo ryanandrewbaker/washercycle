@@ -5,12 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 from .models import EtaConfidence, ProgramMatchState, ProgramProfile
-
-
-def _parse_ts(ts: str | datetime) -> datetime:
-    if isinstance(ts, datetime):
-        return ts
-    return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+from .resample import parse_ts
 
 
 def compute_progress(
@@ -22,12 +17,12 @@ def compute_progress(
     current_progress: float = 0.0,
     internal_state: str = "RUNNING",
     immediately_emptied: bool = False,
-) -> tuple[float, int | None, str | None, str]:
-    """Compute progress percentage, remaining seconds, expected completion, ETA confidence."""
+) -> tuple[float, int | None, datetime | None, str]:
+    """Compute progress, remaining seconds, expected completion, ETA confidence."""
     if not started_at:
         return 0.0, None, None, EtaConfidence.UNKNOWN
 
-    start = _parse_ts(started_at)
+    start = parse_ts(started_at)
     elapsed = (now - start).total_seconds()
 
     if internal_state in ("NEEDS_EMPTYING", "NEEDS_REWASH") and not immediately_emptied:
@@ -40,27 +35,21 @@ def compute_progress(
         if profile and profile.duration_median_seconds > 0:
             provisional_total = profile.duration_median_seconds
             progress = min(99.0, (elapsed / provisional_total) * 100)
+            expected = start + timedelta(seconds=provisional_total)
             remaining = max(0, int(provisional_total - elapsed))
-            expected = (now + timedelta(seconds=remaining)).isoformat()
             return max(current_progress, progress), remaining, expected, EtaConfidence.PROVISIONAL
         return max(current_progress, min(50.0, elapsed / 3600 * 100)), None, None, EtaConfidence.UNKNOWN
 
     if not profile or profile.duration_median_seconds <= 0:
         return current_progress, None, None, EtaConfidence.UNAVAILABLE
 
-    baseline_remaining = profile.duration_median_seconds - elapsed
-    mad = profile.duration_mad_seconds or profile.duration_median_seconds * 0.1
-    adjustment = 0.0
-
-    if program_match_state in (ProgramMatchState.CONFIDENT, ProgramMatchState.MANUAL):
-        adjustment = max(-mad, min(mad, baseline_remaining * 0.1))
-
-    remaining = max(0, int(baseline_remaining + adjustment))
-    expected = (now + timedelta(seconds=remaining)).isoformat()
-    total = elapsed + remaining if remaining > 0 else profile.duration_median_seconds
+    expected = start + timedelta(seconds=profile.duration_median_seconds)
+    remaining = max(0, int((expected - now).total_seconds()))
+    total = profile.duration_median_seconds
     progress = min(99.0, (elapsed / total) * 100) if total > 0 else 0.0
 
     eta_conf = EtaConfidence.MATCHED
+    mad = profile.duration_mad_seconds or profile.duration_median_seconds * 0.1
     if elapsed > profile.duration_median_seconds + 2 * mad:
         eta_conf = EtaConfidence.EXTENDED
         remaining = None

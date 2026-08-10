@@ -7,7 +7,8 @@ from datetime import datetime
 from typing import Any
 
 from .detector import CycleDetector, DetectorInput, DetectorResult
-from .models import DetectorConfig
+from .metrics import compute_cycle_metrics
+from .models import DetectorConfig, SampleSource
 from .normalizer import InputNormalizer
 from .profiles import seed_profiles
 from .training import TrainingRecorder
@@ -34,6 +35,7 @@ class ReplayResult:
     program_rankings: list[dict[str, Any]] = field(default_factory=list)
     completion_time: str | None = None
     latency_vs_chirp: float | None = None
+    metrics: dict[str, Any] = field(default_factory=dict)
 
 
 class ReplayHarness:
@@ -85,8 +87,9 @@ class ReplayHarness:
             for t in result.transitions
         )
         for evt in result.events:
-            self._all_events.append({"name": evt.name, "data": evt.data, "timestamp": event.timestamp.isoformat()})
-        self._announcements.extend(result.announcement_requests)
+            self._all_events.append(
+                {"name": evt.name, "data": evt.data, "timestamp": event.timestamp.isoformat()}
+            )
 
         if self.recorder.is_active:
             self.recorder.add_sample(self._to_sample(event))
@@ -111,6 +114,20 @@ class ReplayHarness:
             final_cycle=self.detector.cycle.to_dict(),
             completion_time=completion_time,
             latency_vs_chirp=latency,
+            metrics=compute_cycle_metrics(
+                cycle_id=self.detector.cycle.cycle_id,
+                started_at=self.detector.cycle.started_at,
+                completed_at=self.detector.cycle.completed_at,
+                detected_at=self.detector.cycle.completion_detected_at,
+                expected_completion_at=self.detector.cycle.expected_completion_at,
+                program_id=self.detector.cycle.detected_program,
+                program_confidence=self.detector.cycle.program_confidence,
+                program_identified_at=self.detector.cycle.program_identified_at,
+                completion_reason=self.detector.cycle.completion_reason,
+                match_rejection_reason=self.detector.cycle.match_rejection_reason,
+                trace=self.detector.cycle.trace_compact,
+                prediction_timeline=self.detector.cycle.prediction_timeline,
+            ),
         )
 
     def _event_to_input(self, event: ReplayEvent) -> DetectorInput | None:
@@ -122,6 +139,7 @@ class ReplayHarness:
                 timestamp=event.timestamp,
                 power_w=power.watts if power else None,
                 power_available=power is not None,
+                source=SampleSource.POWER,
             )
         if event.kind == "energy":
             energy = self.normalizer.normalize_energy(
@@ -131,6 +149,7 @@ class ReplayHarness:
                 timestamp=event.timestamp,
                 energy_wh=energy.watt_hours if energy else None,
                 energy_available=energy is not None,
+                source=SampleSource.ENERGY,
             )
         if event.kind == "movement":
             mv = self.normalizer.normalize_bool(
@@ -140,6 +159,7 @@ class ReplayHarness:
                 timestamp=event.timestamp,
                 movement=mv.value if mv else None,
                 movement_available=mv is not None,
+                source=SampleSource.MOVEMENT,
             )
         if event.kind == "door":
             door = self.normalizer.normalize_bool(
@@ -152,6 +172,7 @@ class ReplayHarness:
                 timestamp=event.timestamp,
                 door_open=door.value if door else None,
                 door_available=door is not None,
+                source=SampleSource.DOOR,
             )
         if event.kind == "source_unavailable":
             return DetectorInput(timestamp=event.timestamp, power_available=False)
