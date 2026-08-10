@@ -10,8 +10,18 @@ from unittest.mock import MagicMock
 
 import pytest
 
+try:
+    import homeassistant  # noqa: F401
+
+    HA_INSTALLED = True
+except ImportError:
+    HA_INSTALLED = False
+
+if HA_INSTALLED:
+    pytest_plugins = ("pytest_homeassistant_custom_component.common",)
+
 # Mock homeassistant for pure domain tests when HA is not installed
-if "homeassistant" not in sys.modules:
+if not HA_INSTALLED and "homeassistant" not in sys.modules:
     ha = ModuleType("homeassistant")
     ha_core = ModuleType("homeassistant.core")
     ha_config_entries = ModuleType("homeassistant.config_entries")

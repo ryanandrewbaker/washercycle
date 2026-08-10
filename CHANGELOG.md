@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.3] - 2026-08-10
+
+### Fixed
+
+- Register Home Assistant `Store` migration callback so v1 installations upgrade
+  without `NotImplementedError` during `async_load()`
+- Preserve calibration runs, active cycle, and pending programme selection during
+  v1 → v2 storage migration
+
 ## [2.0.2] - 2026-08-10
 
 ### Fixed

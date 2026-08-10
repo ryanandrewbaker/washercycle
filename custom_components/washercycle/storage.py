@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import logging
 from typing import Any
 
@@ -22,13 +23,100 @@ from .profiles import seed_profiles
 _LOGGER = logging.getLogger(__name__)
 
 
+async def async_migrate_storage(
+    old_major_version: int,
+    old_minor_version: int,
+    old_data: dict[str, Any],
+) -> dict[str, Any]:
+    """Migrate WasherCycle storage for Home Assistant Store envelope upgrades."""
+    _ = old_minor_version
+    return migrate_storage_payload(old_major_version, old_data)
+
+
+def migrate_storage_payload(
+    old_major_version: int,
+    old_data: dict[str, Any],
+) -> dict[str, Any]:
+    """Migrate WasherCycle payload; deep-copy input and keep migration idempotent."""
+    data = copy.deepcopy(old_data)
+    source_version = old_major_version
+    internal_version = data.get("version")
+    if isinstance(internal_version, int) and internal_version < source_version:
+        source_version = internal_version
+
+    if source_version < 2:
+        _LOGGER.info("Migrating WasherCycle storage from v%s to v2", source_version)
+        _apply_v1_to_v2_transforms(data)
+
+    _apply_v2_defaults(data)
+    data["version"] = STORAGE_VERSION
+    return data
+
+
+def _apply_v1_to_v2_transforms(data: dict[str, Any]) -> None:
+    """Apply one-time v1 → v2 field transforms (mutates *data* in place)."""
+    data.pop("announcement_state", None)
+    for run in data.get("training_runs", []):
+        if run.get("schema_version", 1) < 2:
+            run["schema_version"] = 2
+            flags = run.setdefault("anomaly_flags", [])
+            if "manual" in str(run.get("note", "")).lower() and "manual_timing" not in flags:
+                flags.append("manual_timing")
+    for _pid, pdata in data.get("profiles", {}).items():
+        pdata["profile_schema_version"] = 2
+        pdata.setdefault("recognition_ready", False)
+        pdata.setdefault("real_run_count", 0)
+        pdata.setdefault("feature_vector", {})
+
+
+def _apply_v2_defaults(data: dict[str, Any]) -> None:
+    """Ensure v2 payload defaults; safe to call repeatedly."""
+    data.pop("announcement_state", None)
+    data.setdefault("pending_program", "auto")
+    data.setdefault("raw_run_retention", 50)
+    data.setdefault("completed_history_retention", 20)
+    data.setdefault("data_quality_counters", {})
+    data.setdefault("recent_transitions", [])
+    data.setdefault("normalizer_state", {})
+    data.setdefault("completed_history", [])
+    data.setdefault("latency_stats", LatencyStats().to_dict())
+    data.setdefault("active_recording", ActiveRecording().to_dict())
+    if not data.get("current_cycle"):
+        data["current_cycle"] = CycleRecord(cycle_id="").to_dict()
+    if not data.get("profiles"):
+        profiles = seed_profiles()
+        data["profiles"] = {pid: p.to_dict() for pid, p in profiles.items()}
+    else:
+        for _pid, pdata in data.get("profiles", {}).items():
+            pdata.setdefault("profile_schema_version", 2)
+            pdata.setdefault("recognition_ready", False)
+            pdata.setdefault("real_run_count", 0)
+            pdata.setdefault("feature_vector", {})
+
+
+class _WasherCycleStore(Store[dict[str, Any]]):
+    """Home Assistant Store with WasherCycle envelope migration."""
+
+    async def _async_migrate_func(
+        self,
+        old_major_version: int,
+        old_minor_version: int,
+        old_data: dict[str, Any],
+    ) -> dict[str, Any]:
+        return await async_migrate_storage(
+            old_major_version,
+            old_minor_version,
+            old_data,
+        )
+
+
 class WasherCycleStorage:
     """Versioned storage with debounced writes."""
 
     def __init__(self, hass: HomeAssistant, entry_id: str) -> None:
         self.hass = hass
         self.entry_id = entry_id
-        self._store = Store(
+        self._store = _WasherCycleStore(
             hass,
             STORAGE_VERSION,
             f"{STORAGE_KEY}_{entry_id}",
@@ -42,7 +130,8 @@ class WasherCycleStorage:
         if stored is None:
             self._data = self._default_data()
         else:
-            self._data = self._migrate(stored)
+            self._data = migrate_storage_payload(STORAGE_VERSION, stored)
+            self._data.setdefault("config_entry_id", self.entry_id)
         return self._data
 
     async def async_save(self, *, immediate: bool = False) -> None:
@@ -223,34 +312,9 @@ class WasherCycleStorage:
             "completed_history": [],
             "latency_stats": LatencyStats().to_dict(),
             "pending_program": "auto",
-            "announcement_state": {},
             "normalizer_state": {},
             "recent_transitions": [],
             "data_quality_counters": {},
             "raw_run_retention": 50,
             "completed_history_retention": 20,
         }
-
-    def _migrate(self, data: dict[str, Any]) -> dict[str, Any]:
-        """Migrate storage data to current version."""
-        version = data.get("version", 1)
-        if version < 2:
-            _LOGGER.info("Migrating WasherCycle storage from v%s to v2", version)
-            data.pop("announcement_state", None)
-            for run in data.get("training_runs", []):
-                if run.get("schema_version", 1) < 2:
-                    run["anomaly_flags"] = run.get("anomaly_flags", [])
-                    if "manual" in str(run.get("note", "")).lower():
-                        run["anomaly_flags"].append("manual_timing")
-            for _pid, pdata in data.get("profiles", {}).items():
-                pdata["profile_schema_version"] = 2
-                pdata.setdefault("recognition_ready", False)
-                pdata.setdefault("real_run_count", 0)
-                pdata.setdefault("feature_vector", {})
-            data["version"] = 2
-        if version < STORAGE_VERSION:
-            data["version"] = STORAGE_VERSION
-        if "profiles" not in data:
-            profiles = seed_profiles()
-            data["profiles"] = {pid: p.to_dict() for pid, p in profiles.items()}
-        return data

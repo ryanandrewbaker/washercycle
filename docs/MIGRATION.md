@@ -41,7 +41,8 @@ Stable contract entities unchanged:
 
 ## Storage migration
 
-Storage automatically migrates from v1 to v2 on load:
+Storage automatically migrates from v1 to v2 on load via Home Assistant's Store
+migration callback (required when the on-disk envelope version is older than v2):
 
 - Removes `announcement_state`
 - Flags manual-timing runs with `manual_timing` anomaly
