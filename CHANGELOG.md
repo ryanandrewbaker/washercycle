@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.4] - 2026-08-10
+
+### Fixed
+
+- Options flow no longer assigns read-only `config_entry` on current Home Assistant
+  (fixes 500 / `AttributeError: property 'config_entry' has no setter`)
+
 ## [2.0.3] - 2026-08-10
 
 ### Fixed
