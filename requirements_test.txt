@@ -1,5 +1,5 @@
-# Minimal deps for local domain/replay tests (works on macOS system Python 3.9+)
-pytest>=8.0
-pytest-asyncio>=0.23
-voluptuous>=0.13.0
-ruff>=0.4.0
+# Pinned test toolchain for WasherCycle (Python 3.12+ in CI; local macOS may use 3.9+)
+pytest==8.3.4
+pytest-asyncio==0.24.0
+voluptuous==0.15.2
+ruff==0.9.6
