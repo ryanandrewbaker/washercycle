@@ -20,9 +20,7 @@ class CompletionAssessment:
     signature_score: float = 0.0
 
 
-def _standby_duration_seconds(
-    standby_since: str | None, now: datetime
-) -> float:
+def _standby_duration_seconds(standby_since: str | None, now: datetime) -> float:
     if not standby_since:
         return 0.0
     return (now - parse_ts(standby_since)).total_seconds()

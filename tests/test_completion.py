@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from custom_components.washercycle.completion import assess_completion
-from custom_components.washercycle.detector import CycleDetector, DetectorInput
-from custom_components.washercycle.models import InternalState, SampleSource
+from custom_components.washercycle.detector import CycleDetector
+from custom_components.washercycle.models import InternalState
 
 
 def test_conservative_completion_backdated_to_first_standby_sample(detector_config):
     det = CycleDetector(config=detector_config)
-    base = datetime(2026, 7, 31, 10, 0, tzinfo=timezone.utc)
+    base = datetime(2026, 7, 31, 10, 0, tzinfo=UTC)
     det.cycle.internal_state = InternalState.RUNNING
     det.cycle.started_at = (base - timedelta(hours=2)).isoformat()
     standby_start = base
@@ -34,7 +34,7 @@ def test_conservative_completion_backdated_to_first_standby_sample(detector_conf
 
 def test_completion_event_before_post_window_finalize(detector_config):
     det = CycleDetector(config=detector_config)
-    base = datetime(2026, 7, 31, 10, 0, tzinfo=timezone.utc)
+    base = datetime(2026, 7, 31, 10, 0, tzinfo=UTC)
     det.cycle.internal_state = InternalState.RUNNING
     det.cycle.started_at = (base - timedelta(hours=2)).isoformat()
     det.cycle.standby_since = (base - timedelta(seconds=90)).isoformat()

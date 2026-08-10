@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -216,7 +216,7 @@ class WasherCycleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         async with self._lock:
             if not self.detector:
                 return
-            now = timestamp or datetime.now(timezone.utc)
+            now = timestamp or datetime.now(UTC)
             data = self.config
             triggered = self._last_triggered_entity
             self._last_triggered_entity = None
@@ -234,9 +234,7 @@ class WasherCycleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 else None
             )
             plug_state = (
-                self.hass.states.get(data[CONF_PLUG_SWITCH])
-                if data.get(CONF_PLUG_SWITCH)
-                else None
+                self.hass.states.get(data[CONF_PLUG_SWITCH]) if data.get(CONF_PLUG_SWITCH) else None
             )
 
             power_available = power_state is not None and power_state.state not in (
@@ -244,17 +242,25 @@ class WasherCycleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 STATE_UNKNOWN,
             )
             energy_available = (
-                energy_state is not None
-                and energy_state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN)
-            ) if energy_state else False
+                (
+                    energy_state is not None
+                    and energy_state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN)
+                )
+                if energy_state
+                else False
+            )
             door_available = door_state is not None and door_state.state not in (
                 STATE_UNAVAILABLE,
                 STATE_UNKNOWN,
             )
             movement_available = (
-                movement_state is not None
-                and movement_state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN)
-            ) if movement_state else False
+                (
+                    movement_state is not None
+                    and movement_state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN)
+                )
+                if movement_state
+                else False
+            )
 
             power = None
             if power_available and power_state:
@@ -402,15 +408,9 @@ class WasherCycleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             profiles[pid] = build_profile_from_runs(
                 pid,
                 runs,
-                resample_interval_seconds=int(
-                    self.options.get(OPT_RESAMPLE_INTERVAL_SECONDS, 15)
-                ),
-                end_signature_pre_seconds=int(
-                    self.options.get("end_signature_pre_seconds", 300)
-                ),
-                end_signature_post_seconds=int(
-                    self.options.get("end_signature_post_seconds", 30)
-                ),
+                resample_interval_seconds=int(self.options.get(OPT_RESAMPLE_INTERVAL_SECONDS, 15)),
+                end_signature_pre_seconds=int(self.options.get("end_signature_pre_seconds", 300)),
+                end_signature_post_seconds=int(self.options.get("end_signature_post_seconds", 30)),
             )
         self.storage.set_profiles(profiles)
         if self.detector:
@@ -445,5 +445,5 @@ class WasherCycleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             raise ValueError("force_empty requires advanced_diagnostics option")
         if self.detector:
             result = self.detector.force_empty()
-            await self._apply_result(result, datetime.now(timezone.utc))
+            await self._apply_result(result, datetime.now(UTC))
             self.async_set_updated_data(self.data)

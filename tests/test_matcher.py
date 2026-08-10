@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from custom_components.washercycle.matcher import match_program
 from custom_components.washercycle.models import DetectorConfig, ProgramMatchState, ProgramProfile
@@ -10,7 +10,7 @@ from custom_components.washercycle.models import DetectorConfig, ProgramMatchSta
 
 def test_unknown_when_no_profiles():
     config = DetectorConfig()
-    started = datetime(2026, 7, 31, 10, 0, tzinfo=timezone.utc)
+    started = datetime(2026, 7, 31, 10, 0, tzinfo=UTC)
     result = match_program(
         started_at=started.isoformat(),
         now=started,
@@ -26,7 +26,7 @@ def test_unknown_when_no_profiles():
 
 def test_abstains_without_recognition_ready_profiles():
     config = DetectorConfig(min_runs_recognition=1)
-    started = datetime(2026, 7, 31, 10, 0, tzinfo=timezone.utc)
+    started = datetime(2026, 7, 31, 10, 0, tzinfo=UTC)
     profiles = {
         "daily_wash": ProgramProfile(
             program_id="daily_wash",

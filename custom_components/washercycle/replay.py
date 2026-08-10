@@ -11,7 +11,6 @@ from .metrics import compute_cycle_metrics
 from .models import DetectorConfig, SampleSource
 from .normalizer import InputNormalizer
 from .profiles import seed_profiles
-from .training import TrainingRecorder
 
 
 @dataclass
@@ -53,7 +52,6 @@ class ReplayHarness:
             config=self.config,
             profiles=self.profiles,
         )
-        self.recorder = TrainingRecorder()
         self._marked_chirp: datetime | None = None
         self._all_transitions: list[dict[str, Any]] = []
         self._all_events: list[dict[str, Any]] = []
@@ -64,12 +62,9 @@ class ReplayHarness:
         if event.kind == "restart":
             return None
         if event.kind == "user_start_recording":
-            self.recorder.start(event.value or "daily_wash")
             return None
         if event.kind == "user_mark_complete":
             self._marked_chirp = event.timestamp
-            if self.recorder.is_active:
-                self.recorder.mark_complete_and_save()
             return None
 
         inp = self._event_to_input(event)
@@ -90,9 +85,6 @@ class ReplayHarness:
             self._all_events.append(
                 {"name": evt.name, "data": evt.data, "timestamp": event.timestamp.isoformat()}
             )
-
-        if self.recorder.is_active:
-            self.recorder.add_sample(self._to_sample(event))
 
         return result
 
@@ -153,7 +145,9 @@ class ReplayHarness:
             )
         if event.kind == "movement":
             mv = self.normalizer.normalize_bool(
-                event.entity or "binary_sensor.moving", "on" if event.value else "off", event.timestamp
+                event.entity or "binary_sensor.moving",
+                "on" if event.value else "off",
+                event.timestamp,
             )
             return DetectorInput(
                 timestamp=event.timestamp,
@@ -179,11 +173,3 @@ class ReplayHarness:
         if event.kind == "source_restored":
             return DetectorInput(timestamp=event.timestamp, power_available=True)
         return None
-
-    def _to_sample(self, event: ReplayEvent) -> dict[str, Any]:
-        return {
-            "kind": event.kind,
-            "timestamp": event.timestamp.isoformat(),
-            "value": event.value,
-            "entity": event.entity,
-        }

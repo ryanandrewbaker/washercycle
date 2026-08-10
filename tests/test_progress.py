@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from custom_components.washercycle.models import EtaConfidence, ProgramMatchState, ProgramProfile
 from custom_components.washercycle.progress import compute_progress
 
 
 def test_progress_monotonic():
-    started = datetime(2026, 7, 31, 10, 0, tzinfo=timezone.utc)
+    started = datetime(2026, 7, 31, 10, 0, tzinfo=UTC)
     profile = ProgramProfile(
         program_id="daily_wash",
         display_name="Daily Wash",
@@ -34,7 +34,7 @@ def test_progress_monotonic():
 
 
 def test_progress_never_reaches_100_before_completion():
-    started = datetime(2026, 7, 31, 10, 0, tzinfo=timezone.utc)
+    started = datetime(2026, 7, 31, 10, 0, tzinfo=UTC)
     profile = ProgramProfile(
         program_id="daily_wash",
         display_name="Daily Wash",
@@ -51,7 +51,7 @@ def test_progress_never_reaches_100_before_completion():
 
 
 def test_eta_uses_started_at_plus_duration_not_arbitrary_extension():
-    started = datetime(2026, 7, 31, 10, 0, tzinfo=timezone.utc)
+    started = datetime(2026, 7, 31, 10, 0, tzinfo=UTC)
     profile = ProgramProfile(
         program_id="daily_wash",
         display_name="Daily Wash",

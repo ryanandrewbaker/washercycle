@@ -55,11 +55,15 @@ def match_program(
         )
 
     power_samples = trace_to_power_samples(trace)
-    gaps = reporting_gap_stats([{"t": s["t"]} for s in power_samples]) if power_samples else {
-        "p50": 0.0,
-        "p95": 0.0,
-        "max": 0.0,
-    }
+    gaps = (
+        reporting_gap_stats([{"t": s["t"]} for s in power_samples])
+        if power_samples
+        else {
+            "p50": 0.0,
+            "p95": 0.0,
+            "max": 0.0,
+        }
+    )
     max_gap = float(APPLIANCE_PRESET["max_reporting_gap_p95_seconds"])
     if gaps["p95"] > max_gap:
         return MatchResult(
@@ -119,10 +123,7 @@ def match_program(
                 feature_score = max(0.0, 1.0 - abs(peak - peak_ref) / max(peak_ref, 1.0))
 
         score = (
-            power_score * 0.45
-            + energy_score * 0.20
-            + duration_score * 0.20
-            + feature_score * 0.15
+            power_score * 0.45 + energy_score * 0.20 + duration_score * 0.20 + feature_score * 0.15
         )
         candidates.append(
             ProgramCandidate(program_id=pid, score=score, energy_z=energy_z, power_mae=power_mae)
@@ -130,7 +131,9 @@ def match_program(
 
     candidates.sort(key=lambda c: c.score, reverse=True)
 
-    ready_profiles = [p for p in profiles.values() if p.recognition_ready and p.real_run_count >= min_real]
+    ready_profiles = [
+        p for p in profiles.values() if p.recognition_ready and p.real_run_count >= min_real
+    ]
     if not ready_profiles:
         return MatchResult(
             program_id=None,

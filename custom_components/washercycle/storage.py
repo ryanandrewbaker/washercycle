@@ -95,10 +95,7 @@ class WasherCycleStorage:
     def get_profiles(self) -> dict[str, ProgramProfile]:
         """Get program profiles."""
         profiles_data = self._data.get("profiles", {})
-        return {
-            pid: ProgramProfile.from_dict(pdata)
-            for pid, pdata in profiles_data.items()
-        }
+        return {pid: ProgramProfile.from_dict(pdata) for pid, pdata in profiles_data.items()}
 
     def set_profiles(self, profiles: dict[str, ProgramProfile]) -> None:
         """Update program profiles."""
@@ -106,9 +103,7 @@ class WasherCycleStorage:
 
     def get_training_runs(self) -> list[TrainingRun]:
         """Get all training runs."""
-        return [
-            TrainingRun.from_dict(r) for r in self._data.get("training_runs", [])
-        ]
+        return [TrainingRun.from_dict(r) for r in self._data.get("training_runs", [])]
 
     def add_training_run(self, run: TrainingRun) -> None:
         """Add a training run with retention limit."""
@@ -247,7 +242,7 @@ class WasherCycleStorage:
                     run["anomaly_flags"] = run.get("anomaly_flags", [])
                     if "manual" in str(run.get("note", "")).lower():
                         run["anomaly_flags"].append("manual_timing")
-            for pid, pdata in data.get("profiles", {}).items():
+            for _pid, pdata in data.get("profiles", {}).items():
                 pdata["profile_schema_version"] = 2
                 pdata.setdefault("recognition_ready", False)
                 pdata.setdefault("real_run_count", 0)

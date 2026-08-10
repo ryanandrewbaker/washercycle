@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from .const import PROGRAM_CATALOGUE
@@ -22,9 +22,7 @@ def _extract_final_signature(
     pre_seconds: int,
     post_seconds: int,
 ) -> dict[str, Any]:
-  return _extract_final_signature_impl(
-      power_samples, complete_at, pre_seconds, post_seconds
-  )
+    return _extract_final_signature_impl(power_samples, complete_at, pre_seconds, post_seconds)
 
 
 def _count_real_runs(runs: list[TrainingRun]) -> int:
@@ -54,8 +52,7 @@ def build_profile_from_runs(
     real_runs = [
         r
         for r in accepted
-        if "manual_timing" not in r.anomaly_flags
-        and r.derived.get("quality") != "synthetic"
+        if "manual_timing" not in r.anomaly_flags and r.derived.get("quality") != "synthetic"
     ]
 
     profile = ProgramProfile(
@@ -66,7 +63,7 @@ def build_profile_from_runs(
         confirmed_run_count=len(accepted),
         real_run_count=len(real_runs),
         recognition_ready=len(real_runs) >= int(APPLIANCE_PRESET["min_real_runs_recognition"]),
-        last_rebuilt_at=datetime.now(timezone.utc).isoformat(),
+        last_rebuilt_at=datetime.now(UTC).isoformat(),
         profile_schema_version=2,
     )
 
@@ -127,9 +124,7 @@ def build_profile_from_runs(
         for i in range(max_len):
             vals = [t[i]["w"] for t in resampled_traces if i < len(t)]
             if vals:
-                rep_trace.append(
-                    {"offset_s": i * resample_interval_seconds, "w": median(vals)}
-                )
+                rep_trace.append({"offset_s": i * resample_interval_seconds, "w": median(vals)})
         profile.representative_trace = rep_trace
 
         p10, p50, p90 = [], [], []

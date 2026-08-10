@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from .const import PROGRAM_CATALOGUE
@@ -12,7 +12,7 @@ from .resample import parse_ts
 
 
 def _iso_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 class CycleArchive:
@@ -24,7 +24,7 @@ class CycleArchive:
 
     def begin_post_window(self, cycle: CycleRecord) -> None:
         """Schedule post-completion recording for a completed cycle."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         cycle.archive_pending = True
         cycle.post_window_until = (
             now + timedelta(seconds=self.post_completion_seconds)
@@ -74,9 +74,7 @@ class CycleArchive:
         ]
 
         peak = max((s["w"] for s in power_raw), default=0.0)
-        mean = (
-            sum(s["w"] for s in power_raw) / len(power_raw) if power_raw else 0.0
-        )
+        mean = sum(s["w"] for s in power_raw) / len(power_raw) if power_raw else 0.0
 
         quality = "auto"
         if cycle.calibration_program_id and cycle.calibration_program_id != "auto":

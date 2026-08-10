@@ -90,9 +90,7 @@ class WasherCycleConfigFlow(ConfigFlow, domain=DOMAIN):
         """Get options flow."""
         return WasherCycleOptionsFlow(config_entry)
 
-    async def async_step_reconfigure(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Handle reconfiguration."""
         if user_input is not None:
             return self.async_update_reload_and_abort(

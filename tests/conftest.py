@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import ModuleType
 from unittest.mock import MagicMock
@@ -122,7 +122,7 @@ def detector_config() -> DetectorConfig:
 @pytest.fixture
 def base_time() -> datetime:
     """Base timestamp for replay tests."""
-    return datetime(2026, 7, 31, 10, 0, 0, tzinfo=timezone.utc)
+    return datetime(2026, 7, 31, 10, 0, 0, tzinfo=UTC)
 
 
 def make_power_events(

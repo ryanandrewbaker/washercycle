@@ -6,13 +6,11 @@ measurements from the Samsung WW75J54E0IW/SA washer.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 
-def _power_events(
-    base: datetime, profile: list[tuple[int, float]]
-) -> list[dict[str, Any]]:
+def _power_events(base: datetime, profile: list[tuple[int, float]]) -> list[dict[str, Any]]:
     return [
         {
             "timestamp": (base + timedelta(seconds=offset)).isoformat(),
@@ -25,10 +23,8 @@ def _power_events(
 
 def synthetic_quick_wash(base: datetime | None = None) -> dict[str, Any]:
     """Short high-activity synthetic cycle (~45 min)."""
-    base = base or datetime(2026, 7, 31, 10, 0, tzinfo=timezone.utc)
-    profile = (
-        [(0, 3), (30, 120), (300, 180), (600, 90), (1200, 40), (1800, 15), (2400, 3)]
-    )
+    base = base or datetime(2026, 7, 31, 10, 0, tzinfo=UTC)
+    profile = [(0, 3), (30, 120), (300, 180), (600, 90), (1200, 40), (1800, 15), (2400, 3)]
     return {
         "program_id": "quick_wash",
         "synthetic": True,
@@ -38,7 +34,7 @@ def synthetic_quick_wash(base: datetime | None = None) -> dict[str, Any]:
 
 def synthetic_daily_wash(base: datetime | None = None) -> dict[str, Any]:
     """Medium synthetic cycle (~90 min) with heater plateaus."""
-    base = base or datetime(2026, 7, 31, 10, 0, tzinfo=timezone.utc)
+    base = base or datetime(2026, 7, 31, 10, 0, tzinfo=UTC)
     profile = [
         (0, 3),
         (60, 80),
@@ -60,7 +56,7 @@ def synthetic_daily_wash(base: datetime | None = None) -> dict[str, Any]:
 
 def synthetic_bedding(base: datetime | None = None) -> dict[str, Any]:
     """Long synthetic cycle (~150 min) with extended heater periods."""
-    base = base or datetime(2026, 7, 31, 10, 0, tzinfo=timezone.utc)
+    base = base or datetime(2026, 7, 31, 10, 0, tzinfo=UTC)
     profile = [
         (0, 3),
         (120, 100),
@@ -81,7 +77,7 @@ def synthetic_bedding(base: datetime | None = None) -> dict[str, Any]:
 
 def synthetic_drum_clean(base: datetime | None = None) -> dict[str, Any]:
     """Very long low-variance synthetic cycle (~120 min)."""
-    base = base or datetime(2026, 7, 31, 10, 0, tzinfo=timezone.utc)
+    base = base or datetime(2026, 7, 31, 10, 0, tzinfo=UTC)
     profile = [
         (0, 3),
         (180, 60),

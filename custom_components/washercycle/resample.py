@@ -25,9 +25,7 @@ def trace_to_power_samples(trace: list[dict[str, Any]]) -> list[dict[str, Any]]:
     ]
 
 
-def reporting_gap_stats(
-    samples: list[dict[str, Any]], *, ts_key: str = "t"
-) -> dict[str, float]:
+def reporting_gap_stats(samples: list[dict[str, Any]], *, ts_key: str = "t") -> dict[str, float]:
     """Compute inter-sample gap statistics in seconds."""
     if len(samples) < 2:
         return {"p50": 0.0, "p95": 0.0, "max": 0.0}

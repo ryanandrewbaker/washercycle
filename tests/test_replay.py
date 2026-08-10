@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from custom_components.washercycle.replay import ReplayEvent, ReplayHarness
 
 
 def test_replay_start_and_complete():
-    base = datetime(2026, 7, 31, 10, 0, tzinfo=timezone.utc)
+    base = datetime(2026, 7, 31, 10, 0, tzinfo=UTC)
     events = []
     for i in range(20):
         events.append(

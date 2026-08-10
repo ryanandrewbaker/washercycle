@@ -168,7 +168,9 @@ class WasherCycleLastCycleDurationSensor(WasherCycleSensorBase):
 
     @property
     def native_value(self) -> int | None:
-        summary = self.coordinator.data.get("last_cycle_summary", {}) if self.coordinator.data else {}
+        summary = (
+            self.coordinator.data.get("last_cycle_summary", {}) if self.coordinator.data else {}
+        )
         return summary.get("duration_seconds")
 
 
@@ -185,7 +187,9 @@ class WasherCycleLastCycleEnergySensor(WasherCycleSensorBase):
 
     @property
     def native_value(self) -> float | None:
-        summary = self.coordinator.data.get("last_cycle_summary", {}) if self.coordinator.data else {}
+        summary = (
+            self.coordinator.data.get("last_cycle_summary", {}) if self.coordinator.data else {}
+        )
         return summary.get("energy_wh")
 
 

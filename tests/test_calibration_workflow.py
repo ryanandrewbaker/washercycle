@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from custom_components.washercycle.cycle_archive import CycleArchive
 from custom_components.washercycle.detector import CycleDetector, DetectorInput
@@ -11,7 +11,7 @@ from custom_components.washercycle.models import InternalState, SampleSource
 
 def test_selector_label_consumed_at_start_not_reset_at_completion(detector_config):
     det = CycleDetector(config=detector_config, pending_program="daily_wash")
-    base = datetime(2026, 7, 31, 10, 0, tzinfo=timezone.utc)
+    base = datetime(2026, 7, 31, 10, 0, tzinfo=UTC)
     for i in range(6):
         det.process(
             DetectorInput(

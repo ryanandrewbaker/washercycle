@@ -37,8 +37,18 @@ def compute_progress(
             progress = min(99.0, (elapsed / provisional_total) * 100)
             expected = start + timedelta(seconds=provisional_total)
             remaining = max(0, int(provisional_total - elapsed))
-            return max(current_progress, progress), remaining, expected, EtaConfidence.PROVISIONAL
-        return max(current_progress, min(50.0, elapsed / 3600 * 100)), None, None, EtaConfidence.UNKNOWN
+            return (
+                max(current_progress, progress),
+                remaining,
+                expected,
+                EtaConfidence.PROVISIONAL,
+            )
+        return (
+            max(current_progress, min(50.0, elapsed / 3600 * 100)),
+            None,
+            None,
+            EtaConfidence.UNKNOWN,
+        )
 
     if not profile or profile.duration_median_seconds <= 0:
         return current_progress, None, None, EtaConfidence.UNAVAILABLE

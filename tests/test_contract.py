@@ -5,7 +5,6 @@ from __future__ import annotations
 from custom_components.washercycle.const import PROGRAM_CATALOGUE, PROGRAM_SELECT_OPTIONS
 from custom_components.washercycle.models import PublicState
 
-
 REQUIRED_PUBLIC_STATES = {
     PublicState.IDLE,
     PublicState.STARTING,

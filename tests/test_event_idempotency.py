@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from custom_components.washercycle.const import (
     EVENT_CYCLE_COMPLETED,

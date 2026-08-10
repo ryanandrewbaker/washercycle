@@ -33,9 +33,7 @@ def compute_cycle_metrics(
     }
 
     power_samples = trace_to_power_samples(trace)
-    metrics["reporting_gaps"] = reporting_gap_stats(
-        [{"t": s["t"]} for s in power_samples]
-    )
+    metrics["reporting_gaps"] = reporting_gap_stats([{"t": s["t"]} for s in power_samples])
 
     if started_at and program_identified_at:
         metrics["identification_elapsed_seconds"] = (
@@ -45,9 +43,7 @@ def compute_cycle_metrics(
     if started_at and completed_at and expected_completion_at:
         actual = parse_ts(completed_at)
         predicted = parse_ts(expected_completion_at)
-        metrics["eta_absolute_error_seconds"] = abs(
-            (predicted - actual).total_seconds()
-        )
+        metrics["eta_absolute_error_seconds"] = abs((predicted - actual).total_seconds())
         metrics["predicted_completion_at"] = expected_completion_at
         metrics["actual_backdated_completion_at"] = completed_at
 

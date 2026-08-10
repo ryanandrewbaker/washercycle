@@ -542,9 +542,7 @@ class ProgramProfile:
             earliest_plausible_completion_seconds=float(
                 data.get("earliest_plausible_completion_seconds", 0.0)
             ),
-            earliest_identification_seconds=float(
-                data.get("earliest_identification_seconds", 0.0)
-            ),
+            earliest_identification_seconds=float(data.get("earliest_identification_seconds", 0.0)),
             completion_detection_latency_median=float(
                 data.get("completion_detection_latency_median", 0.0)
             ),

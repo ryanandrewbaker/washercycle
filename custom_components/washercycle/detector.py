@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from .completion import assess_completion
@@ -91,7 +91,7 @@ class CycleDetector:
         self._energy_at_last_check: float | None = None
         self._energy_stable_since: datetime | None = None
         self._last_power_sample: tuple[str, float] | None = None
-        self._now_fn = now_fn or (lambda: datetime.now(timezone.utc))
+        self._now_fn = now_fn or (lambda: datetime.now(UTC))
 
     def restore(self, cycle: CycleRecord, pending_program: str = "auto") -> None:
         """Restore detector from persisted cycle."""
@@ -141,11 +141,15 @@ class CycleDetector:
         ):
             events = self._handle_door_correlation(inp, events)
 
-        if state in (
-            InternalState.RUNNING,
-            InternalState.PAUSED,
-            InternalState.NEEDS_EMPTYING,
-        ) or self.cycle.archive_pending:
+        if (
+            state
+            in (
+                InternalState.RUNNING,
+                InternalState.PAUSED,
+                InternalState.NEEDS_EMPTYING,
+            )
+            or self.cycle.archive_pending
+        ):
             events = self._handle_door_emptying(inp, events)
 
         self._update_matching(now, events)
@@ -184,7 +188,7 @@ class CycleDetector:
         if state == InternalState.NEEDS_EMPTYING:
             events = self._handle_needs_emptying_tick(now, events)
 
-        if self.cycle.archive_pending and self.cycle.post_window_until:
+        if self.cycle.archive_pending and self.cycle.post_window_until:  # noqa: SIM102
             if now >= _parse_ts(self.cycle.post_window_until):
                 finalize = True
 
@@ -251,9 +255,7 @@ class CycleDetector:
         now = inp.timestamp
         self.cycle.start_candidate_at = now.isoformat()
         self.cycle.cycle_id = str(uuid.uuid4())
-        evt = self._transition(
-            InternalState.START_CANDIDATE, "power_above_threshold", now
-        )
+        evt = self._transition(InternalState.START_CANDIDATE, "power_above_threshold", now)
         if evt:
             events.append(evt)
         return events
@@ -266,7 +268,7 @@ class CycleDetector:
         candidate_start = _parse_ts(self.cycle.start_candidate_at)
         elapsed = (now - candidate_start).total_seconds()
 
-        if inp.door_open is True or (
+        if inp.door_open is True or (  # noqa: SIM102
             inp.power_w is not None and inp.power_w < self.config.start_power_w
         ):
             if elapsed < self.config.start_sustain_seconds:
@@ -276,7 +278,7 @@ class CycleDetector:
                     events.append(evt)
                 return events
 
-        if inp.power_w is not None and inp.power_w >= self.config.start_power_w:
+        if inp.power_w is not None and inp.power_w >= self.config.start_power_w:  # noqa: SIM102
             if elapsed >= self.config.start_sustain_seconds:
                 self.cycle.started_at = self.cycle.start_candidate_at
                 if inp.energy_wh is not None:
@@ -329,9 +331,7 @@ class CycleDetector:
 
         return self._check_completion(now, events, power_w=inp.power_w)
 
-    def _check_completion(
-        self, now: datetime, events: list, *, power_w: float | None
-    ) -> list:
+    def _check_completion(self, now: datetime, events: list, *, power_w: float | None) -> list:
         if not self.cycle.started_at:
             return events
 
@@ -376,9 +376,7 @@ class CycleDetector:
         self.cycle.completion_detected_at = now.isoformat()
         self.cycle.completion_reason = reason
         self.cycle.immediately_emptied = immediate_empty
-        self.cycle.completion_detection_latency_seconds = (
-            now - backdated_at
-        ).total_seconds()
+        self.cycle.completion_detection_latency_seconds = (now - backdated_at).total_seconds()
 
         evt_data = self._cycle_event_data(
             completion_reason=reason,
@@ -396,9 +394,7 @@ class CycleDetector:
 
         self.cycle.archive_pending = True
         post_seconds = int(APPLIANCE_PRESET["post_completion_seconds"])
-        self.cycle.post_window_until = (
-            now + timedelta(seconds=post_seconds)
-        ).isoformat()
+        self.cycle.post_window_until = (now + timedelta(seconds=post_seconds)).isoformat()
         self.cycle.progress = 100.0
 
         if immediate_empty:
@@ -445,16 +441,18 @@ class CycleDetector:
         if inp.door_open is not True:
             return events
         state = InternalState(self.cycle.internal_state)
-        if state not in (
-            InternalState.NEEDS_EMPTYING,
-            InternalState.NEEDS_REWASH,
-        ) and not self.cycle.archive_pending:
+        if (
+            state
+            not in (
+                InternalState.NEEDS_EMPTYING,
+                InternalState.NEEDS_REWASH,
+            )
+            and not self.cycle.archive_pending
+        ):
             return events
         return self._empty_cycle(inp.timestamp, events)
 
-    def _handle_door_correlation(
-        self, inp: DetectorInput, events: list
-    ) -> list:
+    def _handle_door_correlation(self, inp: DetectorInput, events: list) -> list:
         now = inp.timestamp
         if not self.cycle.door_open_pending_at:
             return events
@@ -466,13 +464,11 @@ class CycleDetector:
             self.cycle.door_open_pending_at = None
             return events
 
-        if inp.power_w is not None and inp.power_w < self.config.standby_power_w:
+        if inp.power_w is not None and inp.power_w < self.config.standby_power_w:  # noqa: SIM102
             if self.cycle.standby_since:
                 standby_elapsed = (now - _parse_ts(self.cycle.standby_since)).total_seconds()
                 if standby_elapsed >= self.config.standby_confirm_seconds:
-                    self.cycle.door_correlation_class = (
-                        DoorCorrelationClass.IMMEDIATE_EMPTY.value
-                    )
+                    self.cycle.door_correlation_class = DoorCorrelationClass.IMMEDIATE_EMPTY.value
                     return self._complete_cycle(
                         now,
                         "door_correlated_completion",

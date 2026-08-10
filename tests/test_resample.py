@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
-from custom_components.washercycle.resample import resample_trace, reporting_gap_stats
+from custom_components.washercycle.resample import reporting_gap_stats, resample_trace
 
 
 def test_irregular_reports_resampled_by_elapsed_time():
-    origin = datetime(2026, 7, 31, 10, 0, tzinfo=timezone.utc)
+    origin = datetime(2026, 7, 31, 10, 0, tzinfo=UTC)
     samples = [
         {"t": origin.isoformat(), "w": 10},
         {"t": (origin + timedelta(seconds=45)).isoformat(), "w": 100},
@@ -22,7 +22,7 @@ def test_irregular_reports_resampled_by_elapsed_time():
 
 
 def test_gap_stats_on_irregular_trace():
-    origin = datetime(2026, 7, 31, 10, 0, tzinfo=timezone.utc)
+    origin = datetime(2026, 7, 31, 10, 0, tzinfo=UTC)
     samples = [
         {"t": origin.isoformat()},
         {"t": (origin + timedelta(seconds=10)).isoformat()},

@@ -58,9 +58,7 @@ DEFAULT_COMPLETION_SPEAKERS = ["media_player.familyroom_havoice_mediaplayer"]
 DEFAULT_REWASH_SPEAKERS = ["media_player.familyroom_havoice_mediaplayer"]
 DEFAULT_REWASH_DELAY_MINUTES = 120
 DEFAULT_COMPLETION_MESSAGE = "The washing machine is finished. Please empty it."
-DEFAULT_REWASH_MESSAGE = (
-    "The washing still has not been emptied. It may need to be rewashed."
-)
+DEFAULT_REWASH_MESSAGE = "The washing still has not been emptied. It may need to be rewashed."
 DEFAULT_SUPPRESS_IF_DOOR_OPEN = True
 DEFAULT_DOOR_SUPPRESSION_WINDOW_SECONDS = 30
 DEFAULT_TTS_ENTITY = "tts.home_assistant_cloud"

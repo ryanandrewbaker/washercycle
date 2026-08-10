@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from custom_components.washercycle.detector import CycleDetector, DetectorInput
 from custom_components.washercycle.models import InternalState, SampleSource
@@ -15,7 +15,7 @@ def _inp(ts: datetime, **kwargs) -> DetectorInput:
 
 def test_brief_power_spike_does_not_start_cycle(detector_config):
     det = CycleDetector(config=detector_config)
-    base = datetime(2026, 7, 31, 10, 0, tzinfo=timezone.utc)
+    base = datetime(2026, 7, 31, 10, 0, tzinfo=UTC)
     det.process(_inp(base, power_w=25.0, door_open=False, power_available=True))
     result = det.process(
         _inp(base + timedelta(seconds=2), power_w=3.0, door_open=False, power_available=True)
@@ -25,7 +25,7 @@ def test_brief_power_spike_does_not_start_cycle(detector_config):
 
 def test_genuine_start_after_sustain(detector_config):
     det = CycleDetector(config=detector_config)
-    base = datetime(2026, 7, 31, 10, 0, tzinfo=timezone.utc)
+    base = datetime(2026, 7, 31, 10, 0, tzinfo=UTC)
     all_events = []
     first_candidate = None
     for i in range(6):
@@ -49,7 +49,7 @@ def test_genuine_start_after_sustain(detector_config):
 
 def test_started_at_is_first_qualifying_transition_not_confirmation(detector_config):
     det = CycleDetector(config=detector_config)
-    base = datetime(2026, 7, 31, 10, 0, tzinfo=timezone.utc)
+    base = datetime(2026, 7, 31, 10, 0, tzinfo=UTC)
     det.process(_inp(base, power_w=50.0, door_open=False, power_available=True))
     assert det.cycle.start_candidate_at == base.isoformat()
     confirm_time = base + timedelta(seconds=30)
@@ -60,7 +60,7 @@ def test_started_at_is_first_qualifying_transition_not_confirmation(detector_con
 
 def test_door_open_alone_does_not_complete(detector_config):
     det = CycleDetector(config=detector_config)
-    base = datetime(2026, 7, 31, 10, 0, tzinfo=timezone.utc)
+    base = datetime(2026, 7, 31, 10, 0, tzinfo=UTC)
     det.cycle.internal_state = InternalState.RUNNING
     det.cycle.started_at = base.isoformat()
     result = det.process(
@@ -76,7 +76,7 @@ def test_door_open_alone_does_not_complete(detector_config):
 
 def test_no_duplicate_start_event(detector_config):
     det = CycleDetector(config=detector_config)
-    base = datetime(2026, 7, 31, 10, 0, tzinfo=timezone.utc)
+    base = datetime(2026, 7, 31, 10, 0, tzinfo=UTC)
     det.cycle.internal_state = InternalState.RUNNING
     det.cycle.started_at = base.isoformat()
     det.cycle.events_emitted["washercycle_cycle_started"] = True
