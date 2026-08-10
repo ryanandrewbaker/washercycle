@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.2] - 2026-08-10
+
+### Fixed
+
+- CI test workflow: pin compatible pytest/HA stack and use Python 3.12 only to avoid pip backtracking
+- Ruff lint failures across integration and test code
+
+### Removed
+
+- Legacy v1 modules no longer used by v2 (`announcements`, `evidence`, `training`)
+
 ## [2.0.0] - 2026-08-10
 
 ### Changed
