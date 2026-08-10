@@ -26,17 +26,10 @@ from custom_components.washercycle.const import (
 )
 
 
-def _home_assistant_installed() -> bool:
-    try:
-        from homeassistant import __version__ as _ha_version  # noqa: F401
-
-        return bool(_ha_version)
-    except ImportError:
-        return False
-
+from tests.helpers.ha_installed import home_assistant_installed
 
 pytestmark = pytest.mark.skipif(
-    not _home_assistant_installed(),
+    not home_assistant_installed(),
     reason="Home Assistant is not installed",
 )
 
