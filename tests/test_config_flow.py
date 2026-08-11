@@ -24,8 +24,6 @@ from custom_components.washercycle.const import (
     OPT_REWASH_DELAY_MINUTES,
     OPT_SHADOW_MODE,
 )
-
-
 from tests.helpers.ha_installed import home_assistant_installed
 
 pytestmark = pytest.mark.skipif(
