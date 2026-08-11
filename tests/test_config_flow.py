@@ -35,6 +35,15 @@ pytestmark = [
 ]
 
 
+@pytest.fixture(autouse=True)
+def disable_coordinator_tick(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Avoid interval timers during config flow integration tests."""
+    monkeypatch.setattr(
+        "custom_components.washercycle.coordinator.WasherCycleCoordinator._subscribe_tick",
+        lambda self: None,
+    )
+
+
 def _entry_data() -> dict[str, str]:
     return {
         CONF_POWER_SENSOR: "sensor.washer_power",

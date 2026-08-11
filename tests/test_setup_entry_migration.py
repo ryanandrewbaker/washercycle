@@ -29,6 +29,15 @@ pytestmark = [
 ]
 
 
+@pytest.fixture(autouse=True)
+def disable_coordinator_tick(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Avoid interval timers during setup entry integration tests."""
+    monkeypatch.setattr(
+        "custom_components.washercycle.coordinator.WasherCycleCoordinator._subscribe_tick",
+        lambda self: None,
+    )
+
+
 @pytest.mark.asyncio
 async def test_setup_entry_loads_existing_v1_storage(
     hass: HomeAssistant,
