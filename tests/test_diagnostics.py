@@ -26,6 +26,7 @@ async def test_diagnostics_snapshot_excludes_removed_fields():
     coordinator.normalizer = MagicMock(state=MagicMock(rejected=[]))
 
     entry = MagicMock()
+    entry.entry_id = "entry-1"
     entry.version = 1
     entry.data = {"power_sensor": "sensor.power"}
     entry.options = {"shadow_mode": True}

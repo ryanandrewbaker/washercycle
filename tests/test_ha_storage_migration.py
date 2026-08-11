@@ -7,7 +7,6 @@ from typing import Any
 
 import pytest
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.storage import Store
 
 from custom_components.washercycle.const import STORAGE_KEY, STORAGE_VERSION
 from custom_components.washercycle.storage import WasherCycleStorage
@@ -100,9 +99,9 @@ async def test_ha_store_v1_envelope_uses_same_key(
         "data": sample_v1_storage_payload(entry_id),
     }
 
-    store = Store(hass, STORAGE_VERSION, storage_key)
-    migrated = await store.async_load()
+    storage = WasherCycleStorage(hass, entry_id)
+    loaded = await storage.async_load()
 
-    assert migrated is not None
-    assert store.key == storage_key
+    assert loaded is not None
+    assert storage._store.key == storage_key
     assert hass_storage[storage_key]["key"] == storage_key

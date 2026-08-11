@@ -29,14 +29,14 @@ async def test_obsolete_entities_removed(hass: HomeAssistant) -> None:
         platform="button",
         unique_id=f"{entry_id}_start_recording",
         suggested_object_id="washercycle_start_recording",
-        config_entry_id=entry.entry_id,
+        config_entry=entry,
     )
     registry.async_get_or_create(
         domain=DOMAIN,
         platform="sensor",
         unique_id=f"{entry_id}_state",
         suggested_object_id="washercycle_state",
-        config_entry_id=entry.entry_id,
+        config_entry=entry,
     )
 
     await async_remove_obsolete_entities(hass, entry)

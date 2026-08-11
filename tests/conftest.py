@@ -20,6 +20,11 @@ except ImportError:
 if HA_INSTALLED:
     pytest_plugins = ("pytest_homeassistant_custom_component.common",)
 
+    @pytest.fixture(autouse=True)
+    def auto_enable_custom_integrations(enable_custom_integrations):
+        """Load custom_components/washercycle for integration tests."""
+        return enable_custom_integrations
+
 # Mock homeassistant for pure domain tests when HA is not installed
 if not HA_INSTALLED and "homeassistant" not in sys.modules:
     ha = ModuleType("homeassistant")

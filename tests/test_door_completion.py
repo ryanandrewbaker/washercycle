@@ -34,13 +34,12 @@ def test_immediate_door_emptying_archives_once_without_duplicate_events(detector
     det.cycle.internal_state = InternalState.NEEDS_EMPTYING
     det.cycle.started_at = (base - timedelta(hours=1)).isoformat()
     det.cycle.completed_at = (base - timedelta(minutes=5)).isoformat()
-    det.cycle.archive_pending = True
-    det.cycle.post_window_until = (base + timedelta(seconds=30)).isoformat()
     det.cycle.trace_compact = [
         {"timestamp": det.cycle.started_at, "power_w": 50.0},
         {"timestamp": det.cycle.completed_at, "power_w": 3.0},
     ]
     archive.begin_post_window(det.cycle)
+    det.cycle.post_window_until = (base + timedelta(seconds=30)).isoformat()
 
     empty_result = det.process(
         DetectorInput(
