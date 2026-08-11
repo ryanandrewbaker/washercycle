@@ -36,17 +36,19 @@ def main() -> None:
     harness = ReplayHarness()
     result = harness.run(events)
 
-    print(json.dumps(
-        {
-            "transitions": result.transitions,
-            "events": result.events,
-            "announcements": result.announcement_decisions,
-            "completion_time": result.completion_time,
-            "latency_vs_chirp": result.latency_vs_chirp,
-            "final_state": result.final_cycle.get("public_state"),
-        },
-        indent=2,
-    ))
+    print(
+        json.dumps(
+            {
+                "transitions": result.transitions,
+                "events": result.events,
+                "metrics": result.metrics,
+                "completion_time": result.completion_time,
+                "latency_vs_chirp": result.latency_vs_chirp,
+                "final_state": result.final_cycle.get("public_state"),
+            },
+            indent=2,
+        )
+    )
 
 
 if __name__ == "__main__":

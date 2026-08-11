@@ -34,11 +34,9 @@ def test_event_names_stable():
     assert EVENT_NEEDS_REWASH == "washercycle_needs_rewash"
 
 
-def test_cycle_completed_requires_immediately_emptied():
+def test_cycle_completed_does_not_include_immediately_emptied():
     sample = {
         "cycle_id": "abc",
-        "immediately_emptied": False,
         **{f: None for f in COMMON_EVENT_FIELDS},
     }
-    assert "immediately_emptied" in sample
-    assert isinstance(sample["immediately_emptied"], bool)
+    assert "immediately_emptied" not in sample

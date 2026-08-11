@@ -160,35 +160,6 @@ class SourceAvailability:
 
 
 @dataclass
-class EvidenceScore:
-    """Completion evidence breakdown."""
-
-    total: float = 0.0
-    power_signature_match: float = 0.0
-    standby_power: float = 0.0
-    movement_stopped: float = 0.0
-    energy_stabilized: float = 0.0
-    duration_plausible: float = 0.0
-    transition_pattern: float = 0.0
-    contradictory: bool = False
-    reason: str = ""
-
-    def to_dict(self) -> dict[str, Any]:
-        """Serialize for diagnostics."""
-        return {
-            "total": round(self.total, 3),
-            "power_signature_match": round(self.power_signature_match, 3),
-            "standby_power": round(self.standby_power, 3),
-            "movement_stopped": round(self.movement_stopped, 3),
-            "energy_stabilized": round(self.energy_stabilized, 3),
-            "duration_plausible": round(self.duration_plausible, 3),
-            "transition_pattern": round(self.transition_pattern, 3),
-            "contradictory": self.contradictory,
-            "reason": self.reason,
-        }
-
-
-@dataclass
 class ProgramCandidate:
     """Program match candidate."""
 
@@ -196,16 +167,6 @@ class ProgramCandidate:
     score: float
     energy_z: float = 0.0
     power_mae: float = 0.0
-
-
-@dataclass
-class AnnouncementLedger:
-    """Per-cycle announcement delivery state."""
-
-    completion_sent: bool = False
-    rewash_sent: bool = False
-    completion_requested_at: datetime | None = None
-    completion_dispatched_at: datetime | None = None
 
 
 @dataclass
@@ -236,14 +197,11 @@ class CycleRecord:
     program_match_state: ProgramMatchState = ProgramMatchState.UNKNOWN
     accumulated_energy_wh: float = 0.0
     trace_compact: list[dict[str, Any]] = field(default_factory=list)
-    pending_end_evidence: dict[str, Any] = field(default_factory=dict)
     door_open_pending_at: str | None = None
     door_correlation_class: str | None = None
     end_candidate_at: str | None = None
     needs_emptying_at: str | None = None
     rewash_due_at: str | None = None
-    immediately_emptied: bool = False
-    announcement: dict[str, Any] = field(default_factory=dict)
     restart_recovered: bool = False
     sensor_data_incomplete: bool = False
     source_availability: dict[str, bool] = field(default_factory=dict)
@@ -284,14 +242,11 @@ class CycleRecord:
             "program_match_state": self.program_match_state,
             "accumulated_energy_wh": self.accumulated_energy_wh,
             "trace_compact": self.trace_compact[-500:],
-            "pending_end_evidence": self.pending_end_evidence,
             "door_open_pending_at": self.door_open_pending_at,
             "door_correlation_class": self.door_correlation_class,
             "end_candidate_at": self.end_candidate_at,
             "needs_emptying_at": self.needs_emptying_at,
             "rewash_due_at": self.rewash_due_at,
-            "immediately_emptied": self.immediately_emptied,
-            "announcement": self.announcement,
             "restart_recovered": self.restart_recovered,
             "sensor_data_incomplete": self.sensor_data_incomplete,
             "source_availability": self.source_availability,
@@ -336,14 +291,11 @@ class CycleRecord:
             ),
             accumulated_energy_wh=float(data.get("accumulated_energy_wh", 0.0)),
             trace_compact=list(data.get("trace_compact", [])),
-            pending_end_evidence=dict(data.get("pending_end_evidence", {})),
             door_open_pending_at=data.get("door_open_pending_at"),
             door_correlation_class=data.get("door_correlation_class"),
             end_candidate_at=data.get("end_candidate_at"),
             needs_emptying_at=data.get("needs_emptying_at"),
             rewash_due_at=data.get("rewash_due_at"),
-            immediately_emptied=bool(data.get("immediately_emptied", False)),
-            announcement=dict(data.get("announcement", {})),
             restart_recovered=bool(data.get("restart_recovered", False)),
             sensor_data_incomplete=bool(data.get("sensor_data_incomplete", False)),
             source_availability=dict(data.get("source_availability", {})),
@@ -367,38 +319,6 @@ class CycleRecord:
             completion_detected_at=data.get("completion_detected_at"),
             match_rejection_reason=data.get("match_rejection_reason"),
             prediction_timeline=list(data.get("prediction_timeline", [])),
-        )
-
-
-@dataclass
-class ActiveRecording:
-    """Active training recording state."""
-
-    active: bool = False
-    run_id: str | None = None
-    program_id: str | None = None
-    started_at: str | None = None
-    samples: list[dict[str, Any]] = field(default_factory=list)
-
-    def to_dict(self) -> dict[str, Any]:
-        """Serialize for storage."""
-        return {
-            "active": self.active,
-            "run_id": self.run_id,
-            "program_id": self.program_id,
-            "started_at": self.started_at,
-            "samples": self.samples[-10000:],
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> ActiveRecording:
-        """Deserialize from storage."""
-        return cls(
-            active=bool(data.get("active", False)),
-            run_id=data.get("run_id"),
-            program_id=data.get("program_id"),
-            started_at=data.get("started_at"),
-            samples=list(data.get("samples", [])),
         )
 
 

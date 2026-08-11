@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.1.0] - 2026-08-12
+
+### Fixed
+
+- Cycle isolation: each new wash gets a fresh cycle record, trace, and energy baseline
+- Energy accumulation uses source energy at cycle start (including tick-confirmed starts)
+- Door-correlated completion no longer skips the needs-emptying state
+- Completion archiving always runs through the post-window; no immediate-empty shortcut
+- Unlabelled Auto runs archive as `unknown` and are excluded from profile learning
+- Diagnostics no longer reference removed recorder/announcement internals
+- Obsolete entity registry entries are removed automatically on setup
+
+### Changed
+
+- Storage schema v3: one-time reset of unreliable v2.0.4 learning data on upgrade
+- `pending_program` resets to `auto` after each archived cycle
+- Supported entity contract: 9 sensors + 2 binary sensors + 1 select (no buttons)
+- `async_remove_entry` deletes per-entry storage on uninstall
+
+### Removed
+
+- `CycleRecord.announcement`, `immediately_emptied`, and `active_recording` storage
+- Training/recording buttons and related translation strings
+- Announcement/TTS options from strings (already absent from options flow)
+
 ## [2.0.4] - 2026-08-10
 
 ### Fixed

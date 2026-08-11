@@ -29,7 +29,6 @@ class ReplayResult:
 
     transitions: list[dict[str, Any]] = field(default_factory=list)
     events: list[dict[str, Any]] = field(default_factory=list)
-    announcement_decisions: list[str] = field(default_factory=list)
     final_cycle: dict[str, Any] = field(default_factory=dict)
     program_rankings: list[dict[str, Any]] = field(default_factory=list)
     completion_time: str | None = None
@@ -55,21 +54,23 @@ class ReplayHarness:
         self._marked_chirp: datetime | None = None
         self._all_transitions: list[dict[str, Any]] = []
         self._all_events: list[dict[str, Any]] = []
-        self._announcements: list[str] = []
+        self._last_energy_wh: float | None = None
 
     def feed(self, event: ReplayEvent) -> DetectorResult | None:
         """Feed a single event."""
         if event.kind == "restart":
             return None
-        if event.kind == "user_start_recording":
-            return None
-        if event.kind == "user_mark_complete":
-            self._marked_chirp = event.timestamp
+        if event.kind in ("user_start_recording", "user_mark_complete"):
+            if event.kind == "user_mark_complete":
+                self._marked_chirp = event.timestamp
             return None
 
         inp = self._event_to_input(event)
         if inp is None:
             return None
+
+        if inp.energy_wh is not None:
+            self._last_energy_wh = inp.energy_wh
 
         result = self.detector.process(inp)
         self._all_transitions.extend(
@@ -102,7 +103,6 @@ class ReplayHarness:
         return ReplayResult(
             transitions=self._all_transitions,
             events=self._all_events,
-            announcement_decisions=self._announcements,
             final_cycle=self.detector.cycle.to_dict(),
             completion_time=completion_time,
             latency_vs_chirp=latency,
@@ -121,6 +121,10 @@ class ReplayHarness:
                 prediction_timeline=self.detector.cycle.prediction_timeline,
             ),
         )
+
+    def tick(self, timestamp: datetime) -> DetectorResult:
+        """Advance detector timers during replay."""
+        return self.detector.tick(timestamp, energy_wh=self._last_energy_wh)
 
     def _event_to_input(self, event: ReplayEvent) -> DetectorInput | None:
         if event.kind == "power":

@@ -8,8 +8,11 @@ entities:
   - entity: sensor.washercycle_program
   - entity: sensor.washercycle_progress
   - entity: sensor.washercycle_time_remaining
+  - entity: sensor.washercycle_expected_completion
+  - entity: sensor.washercycle_last_cycle_duration
+  - entity: sensor.washercycle_last_cycle_energy
+  - entity: sensor.washercycle_program_confidence
+  - entity: sensor.washercycle_eta_confidence
   - entity: binary_sensor.washercycle_running
   - entity: binary_sensor.washercycle_needs_emptying
-  - entity: select.washercycle_program_select
-  - entity: button.washercycle_start_recording
-  - entity: button.washercycle_mark_complete
+  - entity: select.washercycle_next_program

@@ -11,10 +11,8 @@ from homeassistant.helpers.storage import Store
 
 from custom_components.washercycle.const import STORAGE_KEY, STORAGE_VERSION
 from custom_components.washercycle.storage import WasherCycleStorage
-from tests.helpers.v1_storage import sample_v1_storage_payload
-
-
 from tests.helpers.ha_installed import home_assistant_installed
+from tests.helpers.v1_storage import sample_v1_storage_payload, sample_v2_storage_payload
 
 pytestmark = pytest.mark.skipif(
     not home_assistant_installed(),
@@ -27,7 +25,7 @@ def _storage_key(entry_id: str) -> str:
 
 
 @pytest.mark.asyncio
-async def test_ha_store_migrates_v1_envelope(
+async def test_ha_store_migrates_v1_envelope_to_v3(
     hass: HomeAssistant,
     hass_storage: dict[str, Any],
 ) -> None:
@@ -48,13 +46,12 @@ async def test_ha_store_migrates_v1_envelope(
 
     assert loaded["version"] == STORAGE_VERSION
     assert "announcement_state" not in loaded
-    assert loaded["pending_program"] == "quick_wash"
-    assert loaded["current_cycle"]["cycle_id"] == "cycle-live"
-    assert loaded["training_runs"][0]["run_id"] == "run-calibration-1"
-    assert loaded["profiles"]["daily_wash"]["recognition_ready"] is False
-    assert loaded["profiles"]["daily_wash"]["profile_schema_version"] == 2
-    assert loaded["training_runs"][0]["schema_version"] == 2
-    assert "manual_timing" in loaded["training_runs"][0]["anomaly_flags"]
+    assert "active_recording" not in loaded
+    assert loaded["pending_program"] == "auto"
+    assert loaded["training_runs"] == []
+    assert loaded["completed_history"] == []
+    assert loaded["current_cycle"]["cycle_id"] == ""
+    assert loaded["config_entry_id"] == entry_id
 
     assert hass_storage[storage_key]["version"] == STORAGE_VERSION
     assert "announcement_state" not in hass_storage[storage_key]["data"]
@@ -62,8 +59,30 @@ async def test_ha_store_migrates_v1_envelope(
     await storage.async_save_now()
     reloaded = await storage.async_load()
     assert reloaded == loaded
-    assert "announcement_state" not in reloaded
-    assert reloaded["training_runs"][0]["anomaly_flags"].count("manual_timing") == 1
+
+
+@pytest.mark.asyncio
+async def test_ha_store_migrates_v2_envelope_to_v3(
+    hass: HomeAssistant,
+    hass_storage: dict[str, Any],
+) -> None:
+    """v2 learning data is intentionally reset during v3 migration."""
+    entry_id = "migration-v2-entry"
+    storage_key = _storage_key(entry_id)
+    hass_storage[storage_key] = {
+        "version": 2,
+        "minor_version": 1,
+        "key": storage_key,
+        "data": copy.deepcopy(sample_v2_storage_payload(entry_id)),
+    }
+
+    storage = WasherCycleStorage(hass, entry_id)
+    loaded = await storage.async_load()
+
+    assert loaded["version"] == STORAGE_VERSION
+    assert loaded["pending_program"] == "auto"
+    assert loaded["training_runs"] == []
+    assert loaded["completed_history"] == []
 
 
 @pytest.mark.asyncio

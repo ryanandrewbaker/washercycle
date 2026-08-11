@@ -7,12 +7,29 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from .const import PROGRAM_CATALOGUE
-from .models import CycleRecord, TrainingRun
+from .models import CycleRecord, ProgramMatchState, TrainingRun
 from .resample import parse_ts
+
+UNKNOWN_PROGRAM_ID = "unknown"
 
 
 def _iso_now() -> str:
     return datetime.now(UTC).isoformat()
+
+
+def resolve_archive_program(cycle: CycleRecord) -> tuple[str, bool, list[str]]:
+    """Resolve program label and profile inclusion for an archived cycle."""
+    if cycle.calibration_program_id and cycle.calibration_program_id != "auto":
+        return cycle.calibration_program_id, True, []
+
+    if cycle.detected_program and cycle.program_match_state in (
+        ProgramMatchState.CONFIDENT,
+        ProgramMatchState.MANUAL,
+        ProgramMatchState.CORRECTED,
+    ):
+        return cycle.detected_program, True, []
+
+    return UNKNOWN_PROGRAM_ID, False, ["unlabelled_program"]
 
 
 class CycleArchive:
@@ -49,13 +66,12 @@ class CycleArchive:
         resample_interval: int = 15,
     ) -> TrainingRun:
         """Build training run from cycle trace and clear pending state."""
+        _ = resample_interval
         self._pending.pop(cycle.cycle_id, None)
         cycle.archive_pending = False
         cycle.post_window_until = None
 
-        program_id = cycle.calibration_program_id or cycle.detected_program or "daily_wash"
-        if program_id == "auto":
-            program_id = cycle.detected_program or "daily_wash"
+        program_id, included, anomaly_flags = resolve_archive_program(cycle)
         program_name = PROGRAM_CATALOGUE.get(program_id, program_id)
 
         start_at = cycle.started_at or _iso_now()
@@ -76,9 +92,9 @@ class CycleArchive:
         peak = max((s["w"] for s in power_raw), default=0.0)
         mean = sum(s["w"] for s in power_raw) / len(power_raw) if power_raw else 0.0
 
-        quality = "auto"
-        if cycle.calibration_program_id and cycle.calibration_program_id != "auto":
-            quality = "calibration_label"
+        quality = "calibration_label" if cycle.calibration_program_id else "auto"
+        if program_id == UNKNOWN_PROGRAM_ID:
+            quality = "unlabelled"
 
         derived: dict[str, Any] = {
             "auto_detected_start_at": start_at,
@@ -98,10 +114,10 @@ class CycleArchive:
             user_start_at=start_at,
             user_complete_at=complete_at,
             observed_duration_seconds=duration,
-            included_in_profile=quality in ("auto", "calibration_label"),
-            confirmed=True,
+            included_in_profile=included,
+            confirmed=included,
             note="",
-            anomaly_flags=[] if quality != "manual_timing" else ["manual_timing"],
+            anomaly_flags=list(anomaly_flags),
             raw={"power": power_raw, "energy": energy_raw},
             derived=derived,
             schema_version=2,

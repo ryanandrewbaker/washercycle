@@ -23,6 +23,7 @@ from .const import (
     SERVICE_RELABEL_LAST_CYCLE,
 )
 from .coordinator import WasherCycleCoordinator
+from .entity_registry import async_remove_obsolete_entities
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -49,6 +50,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    await async_remove_obsolete_entities(hass, entry)
     _register_services(hass)
     return True
 
@@ -64,6 +66,14 @@ async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Reload WasherCycle."""
     await async_unload_entry(hass, entry)
     await async_setup_entry(hass, entry)
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Delete WasherCycle storage when the config entry is removed."""
+    from .storage import WasherCycleStorage
+
+    storage = WasherCycleStorage(hass, entry.entry_id)
+    await storage.async_remove()
 
 
 def _register_services(hass: HomeAssistant) -> None:

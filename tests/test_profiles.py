@@ -51,3 +51,23 @@ def test_seed_profiles():
     profiles = seed_profiles()
     assert "daily_wash" in profiles
     assert "drum_clean" in profiles
+
+
+def test_unlabelled_program_excluded_from_real_run_count():
+    runs = [
+        TrainingRun(
+            run_id="u1",
+            program_id="unknown",
+            program_name="unknown",
+            user_start_at="2026-01-01T10:00:00+00:00",
+            user_complete_at="2026-01-01T11:00:00+00:00",
+            observed_duration_seconds=3600,
+            included_in_profile=False,
+            anomaly_flags=["unlabelled_program"],
+            raw={"power": []},
+            derived={"quality": "unlabelled"},
+            schema_version=2,
+        )
+    ]
+    profile = build_profile_from_runs("daily_wash", runs)
+    assert profile.real_run_count == 0

@@ -11,16 +11,15 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
 from .const import STORAGE_KEY, STORAGE_VERSION
-from .models import (
-    ActiveRecording,
-    CycleRecord,
-    LatencyStats,
-    ProgramProfile,
-    TrainingRun,
-)
+from .models import CycleRecord, LatencyStats, ProgramProfile, TrainingRun
 from .profiles import seed_profiles
 
 _LOGGER = logging.getLogger(__name__)
+
+_OBSOLETE_STORAGE_KEYS = (
+    "active_recording",
+    "announcement_state",
+)
 
 
 async def async_migrate_storage(
@@ -48,7 +47,15 @@ def migrate_storage_payload(
         _LOGGER.info("Migrating WasherCycle storage from v%s to v2", source_version)
         _apply_v1_to_v2_transforms(data)
 
-    _apply_v2_defaults(data)
+    if source_version < 3:
+        _LOGGER.info(
+            "Resetting unreliable WasherCycle learning data from v%s to v3", source_version
+        )
+        _apply_v2_to_v3_reset(data)
+
+    _apply_v3_defaults(data)
+    for key in _OBSOLETE_STORAGE_KEYS:
+        data.pop(key, None)
     data["version"] = STORAGE_VERSION
     return data
 
@@ -69,9 +76,23 @@ def _apply_v1_to_v2_transforms(data: dict[str, Any]) -> None:
         pdata.setdefault("feature_vector", {})
 
 
-def _apply_v2_defaults(data: dict[str, Any]) -> None:
-    """Ensure v2 payload defaults; safe to call repeatedly."""
-    data.pop("announcement_state", None)
+def _apply_v2_to_v3_reset(data: dict[str, Any]) -> None:
+    """One-time reset of unreliable v2.0.4 learning data."""
+    data["current_cycle"] = CycleRecord(cycle_id="").to_dict()
+    data["pending_program"] = "auto"
+    data["training_runs"] = []
+    profiles = seed_profiles()
+    data["profiles"] = {pid: p.to_dict() for pid, p in profiles.items()}
+    data["completed_history"] = []
+    data["latency_stats"] = LatencyStats().to_dict()
+    data["recent_transitions"] = []
+    data["data_quality_counters"] = {}
+    for key in _OBSOLETE_STORAGE_KEYS:
+        data.pop(key, None)
+
+
+def _apply_v3_defaults(data: dict[str, Any]) -> None:
+    """Ensure v3 payload defaults; safe to call repeatedly."""
     data.setdefault("pending_program", "auto")
     data.setdefault("raw_run_retention", 50)
     data.setdefault("completed_history_retention", 20)
@@ -80,7 +101,7 @@ def _apply_v2_defaults(data: dict[str, Any]) -> None:
     data.setdefault("normalizer_state", {})
     data.setdefault("completed_history", [])
     data.setdefault("latency_stats", LatencyStats().to_dict())
-    data.setdefault("active_recording", ActiveRecording().to_dict())
+    data.setdefault("training_runs", [])
     if not data.get("current_cycle"):
         data["current_cycle"] = CycleRecord(cycle_id="").to_dict()
     if not data.get("profiles"):
@@ -130,9 +151,14 @@ class WasherCycleStorage:
         if stored is None:
             self._data = self._default_data()
         else:
-            self._data = migrate_storage_payload(STORAGE_VERSION, stored)
+            stored_version = stored.get("version", 1)
+            self._data = migrate_storage_payload(stored_version, stored)
             self._data.setdefault("config_entry_id", self.entry_id)
         return self._data
+
+    async def async_remove(self) -> None:
+        """Delete persisted storage for this config entry."""
+        await self._store.async_remove()
 
     async def async_save(self, *, immediate: bool = False) -> None:
         """Save storage data, debounced unless immediate."""
@@ -169,17 +195,6 @@ class WasherCycleStorage:
     def set_cycle(self, cycle: CycleRecord) -> None:
         """Update current cycle."""
         self._data["current_cycle"] = cycle.to_dict()
-
-    def get_recording(self) -> ActiveRecording:
-        """Get active recording."""
-        rec_data = self._data.get("active_recording")
-        if rec_data:
-            return ActiveRecording.from_dict(rec_data)
-        return ActiveRecording()
-
-    def set_recording(self, recording: ActiveRecording) -> None:
-        """Update active recording."""
-        self._data["active_recording"] = recording.to_dict()
 
     def get_profiles(self) -> dict[str, ProgramProfile]:
         """Get program profiles."""
@@ -256,14 +271,6 @@ class WasherCycleStorage:
         """Set pending manual program."""
         self._data["pending_program"] = program
 
-    def get_announcement_state(self) -> dict[str, Any]:
-        """Get announcement delivery state."""
-        return dict(self._data.get("announcement_state", {}))
-
-    def set_announcement_state(self, state: dict[str, Any]) -> None:
-        """Update announcement delivery state."""
-        self._data["announcement_state"] = state
-
     def get_normalizer_state(self) -> dict[str, Any]:
         """Get normalizer state."""
         return dict(self._data.get("normalizer_state", {}))
@@ -306,7 +313,6 @@ class WasherCycleStorage:
             "version": STORAGE_VERSION,
             "config_entry_id": self.entry_id,
             "current_cycle": CycleRecord(cycle_id="").to_dict(),
-            "active_recording": ActiveRecording().to_dict(),
             "profiles": {pid: p.to_dict() for pid, p in profiles.items()},
             "training_runs": [],
             "completed_history": [],

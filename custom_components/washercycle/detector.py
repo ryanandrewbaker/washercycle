@@ -105,21 +105,7 @@ class CycleDetector:
         now = inp.timestamp
 
         self._update_availability(inp)
-        if inp.source == SampleSource.POWER and inp.power_w is not None:
-            self._append_power_trace(inp)
-
-        if inp.energy_wh is not None:
-            if self._energy_at_last_check is not None:
-                if abs(inp.energy_wh - self._energy_at_last_check) < 0.01:
-                    if self._energy_stable_since is None:
-                        self._energy_stable_since = now
-                else:
-                    self._energy_stable_since = None
-            self._energy_at_last_check = inp.energy_wh
-            if inp.energy_wh is not None and self.cycle.energy_at_start_wh is not None:
-                self.cycle.accumulated_energy_wh = max(
-                    0.0, inp.energy_wh - self.cycle.energy_at_start_wh
-                )
+        self._update_energy_accumulation(inp)
 
         state = InternalState(self.cycle.internal_state)
 
@@ -134,6 +120,7 @@ class CycleDetector:
         elif state == InternalState.NEEDS_REWASH:
             events = self._handle_needs_rewash(inp, events)
 
+        state = InternalState(self.cycle.internal_state)
         if self.cycle.door_open_pending_at and state not in (
             InternalState.IDLE,
             InternalState.NEEDS_EMPTYING,
@@ -152,6 +139,13 @@ class CycleDetector:
         ):
             events = self._handle_door_emptying(inp, events)
 
+        if (
+            self._should_record_trace()
+            and inp.source == SampleSource.POWER
+            and inp.power_w is not None
+        ):
+            self._append_power_trace(inp)
+
         self._update_matching(now, events)
         return DetectorResult(
             cycle=self.cycle,
@@ -160,7 +154,7 @@ class CycleDetector:
             finalize_archive=False,
         )
 
-    def tick(self, now: datetime) -> DetectorResult:
+    def tick(self, now: datetime, *, energy_wh: float | None = None) -> DetectorResult:
         """Advance timers only — does not append trace samples."""
         events: list[DetectorEvent] = []
         finalize = False
@@ -171,6 +165,7 @@ class CycleDetector:
             elapsed = (now - candidate_start).total_seconds()
             if elapsed >= self.config.start_sustain_seconds:
                 self.cycle.started_at = self.cycle.start_candidate_at
+                self._ensure_energy_baseline(energy_wh)
                 self._consume_calibration_label()
                 evt = self._transition(
                     InternalState.RUNNING,
@@ -253,8 +248,7 @@ class CycleDetector:
             return events
 
         now = inp.timestamp
-        self.cycle.start_candidate_at = now.isoformat()
-        self.cycle.cycle_id = str(uuid.uuid4())
+        self._begin_new_cycle(now, energy_at_start_wh=inp.energy_wh)
         evt = self._transition(InternalState.START_CANDIDATE, "power_above_threshold", now)
         if evt:
             events.append(evt)
@@ -281,8 +275,7 @@ class CycleDetector:
         if inp.power_w is not None and inp.power_w >= self.config.start_power_w:  # noqa: SIM102
             if elapsed >= self.config.start_sustain_seconds:
                 self.cycle.started_at = self.cycle.start_candidate_at
-                if inp.energy_wh is not None:
-                    self.cycle.energy_at_start_wh = inp.energy_wh
+                self._ensure_energy_baseline(inp.energy_wh)
                 self._consume_calibration_label()
                 evt = self._transition(
                     InternalState.RUNNING,
@@ -369,19 +362,14 @@ class CycleDetector:
         events: list,
         *,
         backdated: datetime | None = None,
-        immediate_empty: bool = False,
     ) -> list:
         backdated_at = backdated or now
         self.cycle.completed_at = backdated_at.isoformat()
         self.cycle.completion_detected_at = now.isoformat()
         self.cycle.completion_reason = reason
-        self.cycle.immediately_emptied = immediate_empty
         self.cycle.completion_detection_latency_seconds = (now - backdated_at).total_seconds()
 
-        evt_data = self._cycle_event_data(
-            completion_reason=reason,
-            immediately_emptied=immediate_empty,
-        )
+        evt_data = self._cycle_event_data(completion_reason=reason)
         if not self.cycle.events_emitted.get(EVENT_CYCLE_COMPLETED):
             self.cycle.events_emitted[EVENT_CYCLE_COMPLETED] = True
             events.append(
@@ -396,21 +384,6 @@ class CycleDetector:
         post_seconds = int(APPLIANCE_PRESET["post_completion_seconds"])
         self.cycle.post_window_until = (now + timedelta(seconds=post_seconds)).isoformat()
         self.cycle.progress = 100.0
-
-        if immediate_empty:
-            self.cycle.door_correlation_class = DoorCorrelationClass.IMMEDIATE_EMPTY.value
-            if not self.cycle.events_emitted.get(EVENT_CYCLE_EMPTIED):
-                self.cycle.events_emitted[EVENT_CYCLE_EMPTIED] = True
-                events.append(
-                    DetectorEvent(
-                        name=EVENT_CYCLE_EMPTIED,
-                        data=self._cycle_event_data(immediately_emptied=True),
-                        shadow=self.config.shadow_mode,
-                    )
-                )
-            self._transition(InternalState.IDLE, "completed_and_emptied", now)
-            self.cycle.archive_pending = False
-            return events
 
         self.cycle.needs_emptying_at = now.isoformat()
         rewash_due = now + timedelta(minutes=self.config.rewash_delay_minutes)
@@ -474,7 +447,6 @@ class CycleDetector:
                         "door_correlated_completion",
                         events,
                         backdated=_parse_ts(self.cycle.standby_since),
-                        immediate_empty=True,
                     )
 
         return events
@@ -576,7 +548,6 @@ class CycleDetector:
             program_match_state=result.match_state,
             current_progress=self.cycle.progress,
             internal_state=self.cycle.internal_state,
-            immediately_emptied=self.cycle.immediately_emptied,
         )
         self.cycle.progress = progress
         self.cycle.time_remaining_seconds = remaining
@@ -634,11 +605,49 @@ class CycleDetector:
             "completed_at": self.cycle.completed_at,
             "energy_wh": self.cycle.accumulated_energy_wh,
             "completion_reason": self.cycle.completion_reason,
-            "immediately_emptied": self.cycle.immediately_emptied,
             "restart_recovered": self.cycle.restart_recovered,
             "sensor_data_incomplete": self.cycle.sensor_data_incomplete,
             **extra,
         }
+
+    def _begin_new_cycle(self, now: datetime, *, energy_at_start_wh: float | None = None) -> None:
+        """Create a fresh cycle record for a new wash."""
+        self.cycle = CycleRecord(cycle_id=str(uuid.uuid4()))
+        self.cycle.start_candidate_at = now.isoformat()
+        self._ensure_energy_baseline(energy_at_start_wh)
+        self._last_power_sample = None
+        self._energy_at_last_check = None
+        self._energy_stable_since = None
+        self.transitions = []
+
+    def _ensure_energy_baseline(self, energy_wh: float | None) -> None:
+        if energy_wh is not None and self.cycle.energy_at_start_wh is None:
+            self.cycle.energy_at_start_wh = energy_wh
+
+    def _update_energy_accumulation(self, inp: DetectorInput) -> None:
+        if inp.energy_wh is None:
+            return
+        if self._energy_at_last_check is not None:
+            if abs(inp.energy_wh - self._energy_at_last_check) < 0.01:
+                if self._energy_stable_since is None:
+                    self._energy_stable_since = inp.timestamp
+            else:
+                self._energy_stable_since = None
+        self._energy_at_last_check = inp.energy_wh
+        if self.cycle.energy_at_start_wh is not None:
+            self.cycle.accumulated_energy_wh = max(
+                0.0, inp.energy_wh - self.cycle.energy_at_start_wh
+            )
+
+    def _should_record_trace(self) -> bool:
+        state = InternalState(self.cycle.internal_state)
+        return state in (
+            InternalState.START_CANDIDATE,
+            InternalState.RUNNING,
+            InternalState.PAUSED,
+            InternalState.NEEDS_EMPTYING,
+            InternalState.NEEDS_REWASH,
+        )
 
     def set_energy_baseline(self, wh: float | None) -> None:
         """Set energy baseline at cycle start."""

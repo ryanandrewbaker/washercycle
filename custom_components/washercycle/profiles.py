@@ -31,6 +31,8 @@ def _count_real_runs(runs: list[TrainingRun]) -> int:
         for r in runs
         if r.schema_version >= 2
         and "manual_timing" not in r.anomaly_flags
+        and "unlabelled_program" not in r.anomaly_flags
+        and r.included_in_profile
         and r.derived.get("quality") in ("auto", "calibration_label", None)
     )
 
@@ -52,7 +54,9 @@ def build_profile_from_runs(
     real_runs = [
         r
         for r in accepted
-        if "manual_timing" not in r.anomaly_flags and r.derived.get("quality") != "synthetic"
+        if "manual_timing" not in r.anomaly_flags
+        and "unlabelled_program" not in r.anomaly_flags
+        and r.derived.get("quality") != "synthetic"
     ]
 
     profile = ProgramProfile(

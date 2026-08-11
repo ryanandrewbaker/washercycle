@@ -16,7 +16,6 @@ def compute_progress(
     program_match_state: ProgramMatchState,
     current_progress: float = 0.0,
     internal_state: str = "RUNNING",
-    immediately_emptied: bool = False,
 ) -> tuple[float, int | None, datetime | None, str]:
     """Compute progress, remaining seconds, expected completion, ETA confidence."""
     if not started_at:
@@ -25,10 +24,7 @@ def compute_progress(
     start = parse_ts(started_at)
     elapsed = (now - start).total_seconds()
 
-    if internal_state in ("NEEDS_EMPTYING", "NEEDS_REWASH") and not immediately_emptied:
-        return 100.0, 0, None, EtaConfidence.MATCHED
-
-    if internal_state == "IDLE" and immediately_emptied:
+    if internal_state in ("NEEDS_EMPTYING", "NEEDS_REWASH"):
         return 100.0, 0, None, EtaConfidence.MATCHED
 
     if program_match_state in (ProgramMatchState.UNKNOWN, ProgramMatchState.DETECTING):

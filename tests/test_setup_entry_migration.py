@@ -17,10 +17,8 @@ from custom_components.washercycle.const import (
     STORAGE_KEY,
 )
 from custom_components.washercycle.setup_entry import async_setup_entry, async_unload_entry
-from tests.helpers.v1_storage import sample_v1_storage_payload
-
-
 from tests.helpers.ha_installed import home_assistant_installed
+from tests.helpers.v1_storage import sample_v1_storage_payload
 
 pytestmark = pytest.mark.skipif(
     not home_assistant_installed(),
@@ -63,9 +61,9 @@ async def test_setup_entry_loads_existing_v1_storage(
     assert await async_setup_entry(hass, entry)
 
     coordinator = hass.data[DOMAIN][entry_id]
-    assert coordinator.storage.get_pending_program() == "quick_wash"
-    assert coordinator.storage.get_cycle().cycle_id == "cycle-live"
-    assert coordinator.storage.get_training_runs()[0].run_id == "run-calibration-1"
+    assert coordinator.storage.get_pending_program() == "auto"
+    assert coordinator.storage.get_cycle().cycle_id == ""
+    assert coordinator.storage.get_training_runs() == []
     assert "announcement_state" not in coordinator.storage.data
     assert coordinator.storage.data["profiles"]["daily_wash"]["profile_schema_version"] == 2
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from custom_components.washercycle.cycle_archive import CycleArchive
+from custom_components.washercycle.cycle_archive import CycleArchive, resolve_archive_program
 from custom_components.washercycle.detector import CycleDetector, DetectorInput
 from custom_components.washercycle.models import InternalState, SampleSource
 
@@ -42,3 +42,22 @@ def test_archive_resets_pending_after_finalize(detector_config):
     archive.begin_post_window(det.cycle)
     run = archive.finalize(det.cycle)
     assert run.program_id == "bedding"
+
+
+def test_finalize_resets_pending_program_in_coordinator_flow(detector_config):
+    """Coordinator resets pending_program to auto after archive (unit-level check)."""
+    archive = CycleArchive(post_completion_seconds=30)
+    det = CycleDetector(config=detector_config, pending_program="bedding")
+    det.cycle.internal_state = InternalState.NEEDS_EMPTYING
+    det.cycle.started_at = "2026-07-31T09:00:00+00:00"
+    det.cycle.completed_at = "2026-07-31T11:00:00+00:00"
+    det.cycle.calibration_program_id = "bedding"
+    det.cycle.calibration_label_consumed = True
+    det.cycle.trace_compact = [{"timestamp": "2026-07-31T09:00:00+00:00", "power_w": 50.0}]
+    archive.begin_post_window(det.cycle)
+    archive.finalize(det.cycle)
+
+    pending_after_archive = "auto"
+    det.pending_program = pending_after_archive
+    assert det.pending_program == "auto"
+    assert resolve_archive_program(det.cycle)[0] == "bedding"

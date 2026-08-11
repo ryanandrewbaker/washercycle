@@ -2,12 +2,7 @@
 
 from __future__ import annotations
 
-from custom_components.washercycle.models import (
-    ActiveRecording,
-    CycleRecord,
-    InternalState,
-    TrainingRun,
-)
+from custom_components.washercycle.models import CycleRecord, InternalState, TrainingRun
 
 
 def test_cycle_roundtrip():
@@ -30,10 +25,3 @@ def test_training_run_roundtrip():
     data = run.to_dict()
     restored = TrainingRun.from_dict(data)
     assert restored.run_id == "r1"
-
-
-def test_active_recording_roundtrip():
-    rec = ActiveRecording(active=True, run_id="r1", program_id="daily_wash")
-    data = rec.to_dict()
-    restored = ActiveRecording.from_dict(data)
-    assert restored.active is True

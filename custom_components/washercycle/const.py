@@ -7,7 +7,7 @@ MANUFACTURER = "Samsung"
 MODEL = "WW75J54E0IW/SA"
 DEFAULT_DEVICE_NAME = "WasherCycle"
 
-STORAGE_VERSION = 2
+STORAGE_VERSION = 3
 STORAGE_KEY = f"{DOMAIN}.storage"
 
 # Default source entity IDs (preselect in config flow)
@@ -50,21 +50,7 @@ DEFAULT_END_SIGNATURE_PRE_SECONDS = 300
 DEFAULT_END_SIGNATURE_POST_SECONDS = 30
 DEFAULT_AUTO_INCLUDE_TRAINING_RUNS = True
 DEFAULT_MATCHER_MARGIN = 0.12
-
-# Announcement defaults
-DEFAULT_COMPLETION_ANNOUNCEMENTS_ENABLED = False
-DEFAULT_REWASH_ANNOUNCEMENTS_ENABLED = False
-DEFAULT_COMPLETION_SPEAKERS = ["media_player.familyroom_havoice_mediaplayer"]
-DEFAULT_REWASH_SPEAKERS = ["media_player.familyroom_havoice_mediaplayer"]
 DEFAULT_REWASH_DELAY_MINUTES = 120
-DEFAULT_COMPLETION_MESSAGE = "The washing machine is finished. Please empty it."
-DEFAULT_REWASH_MESSAGE = "The washing still has not been emptied. It may need to be rewashed."
-DEFAULT_SUPPRESS_IF_DOOR_OPEN = True
-DEFAULT_DOOR_SUPPRESSION_WINDOW_SECONDS = 30
-DEFAULT_TTS_ENTITY = "tts.home_assistant_cloud"
-DEFAULT_TTS_MODE = "speak"
-DEFAULT_QUIET_HOURS_POLICY = "defer"
-DEFAULT_ANNOUNCEMENT_RETRY_COUNT = 0
 
 # Program catalogue
 PROGRAM_CATALOGUE: dict[str, str] = {
@@ -82,9 +68,6 @@ EVENT_PROGRAM_IDENTIFIED = f"{DOMAIN}_program_identified"
 EVENT_CYCLE_COMPLETED = f"{DOMAIN}_cycle_completed"
 EVENT_CYCLE_EMPTIED = f"{DOMAIN}_cycle_emptied"
 EVENT_NEEDS_REWASH = f"{DOMAIN}_needs_rewash"
-EVENT_TRAINING_STARTED = f"{DOMAIN}_training_started"
-EVENT_TRAINING_SAVED = f"{DOMAIN}_training_saved"
-EVENT_TRAINING_CANCELLED = f"{DOMAIN}_training_cancelled"
 EVENT_DATA_QUALITY_WARNING = f"{DOMAIN}_data_quality_warning"
 EVENT_SHADOW_COMPARISON = f"{DOMAIN}_shadow_comparison"
 
@@ -125,36 +108,14 @@ OPT_END_SIGNATURE_PRE_SECONDS = "end_signature_pre_seconds"
 OPT_END_SIGNATURE_POST_SECONDS = "end_signature_post_seconds"
 OPT_AUTO_INCLUDE_TRAINING_RUNS = "auto_include_training_runs"
 OPT_MATCHER_MARGIN = "matcher_margin"
-OPT_COMPLETION_ANNOUNCEMENTS_ENABLED = "completion_announcements_enabled"
-OPT_REWASH_ANNOUNCEMENTS_ENABLED = "rewash_announcements_enabled"
-OPT_COMPLETION_SPEAKERS = "completion_speakers"
-OPT_REWASH_SPEAKERS = "rewash_speakers"
-OPT_COMPLETION_MESSAGE = "completion_message"
-OPT_REWASH_MESSAGE = "rewash_message"
-OPT_SUPPRESS_IF_DOOR_OPEN = "suppress_if_door_open"
-OPT_DOOR_SUPPRESSION_WINDOW_SECONDS = "door_suppression_window_seconds"
-OPT_TTS_ENTITY = "tts_entity"
-OPT_TTS_MODE = "tts_mode"
-OPT_QUIET_HOURS_START = "quiet_hours_start"
-OPT_QUIET_HOURS_END = "quiet_hours_end"
-OPT_QUIET_HOURS_POLICY = "quiet_hours_policy"
-OPT_ANNOUNCEMENT_RETRY_COUNT = "announcement_retry_count"
 
 PLATFORMS = ["sensor", "binary_sensor", "select"]
 
-SERVICE_START_RECORDING = "start_recording"
-SERVICE_MARK_COMPLETE = "mark_complete"
-SERVICE_CANCEL_RECORDING = "cancel_recording"
 SERVICE_EXCLUDE_RUN = "exclude_run"
 SERVICE_INCLUDE_RUN = "include_run"
-SERVICE_RELABEL_RUN = "relabel_run"
-SERVICE_ADJUST_RUN_START = "adjust_run_start"
-SERVICE_ADJUST_RUN_COMPLETE = "adjust_run_complete"
 SERVICE_REBUILD_PROFILES = "rebuild_profiles"
-SERVICE_EXPORT_RUN = "export_run"
 SERVICE_DELETE_RUN = "delete_run"
 SERVICE_RELABEL_LAST_CYCLE = "relabel_last_cycle"
 SERVICE_FORCE_EMPTY = "force_empty"
-SERVICE_EXPORT_DIAGNOSTICS = "export_diagnostics"
 
 ATTR_WASHERCYCLE = "washercycle"

@@ -73,6 +73,7 @@ class WasherCycleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._entity_ids: list[str] = []
         self._last_cycle_summary: dict[str, Any] = {}
         self._last_triggered_entity: str | None = None
+        self._last_energy_wh: float | None = None
         self._lock = asyncio.Lock()
         self.device_info: dict[str, Any] = {}
 
@@ -205,7 +206,7 @@ class WasherCycleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         async with self._lock:
             if not self.detector:
                 return
-            result = self.detector.tick(now)
+            result = self.detector.tick(now, energy_wh=self._last_energy_wh)
             await self._apply_result(result, now)
 
     async def _async_update_data(self) -> dict[str, Any]:
@@ -273,6 +274,8 @@ class WasherCycleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 energy = self.normalizer.normalize_energy(
                     data[CONF_ENERGY_SENSOR], energy_state.state, now, energy_in_kwh=True
                 )
+                if energy is not None:
+                    self._last_energy_wh = energy.watt_hours
 
             door = None
             if door_available and door_state:
@@ -376,9 +379,9 @@ class WasherCycleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             resample_interval=int(self.options.get(OPT_RESAMPLE_INTERVAL_SECONDS, 15)),
         )
         self.storage.add_training_run(run)
-        await self._rebuild_profiles(run.program_id)
-        if cycle.calibration_label_consumed:
-            self.storage.set_pending_program("auto")
+        await self._rebuild_profiles(run.program_id if run.included_in_profile else None)
+        self.storage.set_pending_program("auto")
+        if self.detector:
             self.detector.pending_program = "auto"
         self.storage.set_cycle(cycle)
         await self.storage.async_save(immediate=True)
@@ -433,6 +436,10 @@ class WasherCycleCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         old_program = run.program_id
         run.program_id = program_id
         run.program_name = PROGRAM_CATALOGUE.get(program_id, program_id)
+        run.included_in_profile = True
+        run.confirmed = True
+        if "unlabelled_program" in run.anomaly_flags:
+            run.anomaly_flags = [f for f in run.anomaly_flags if f != "unlabelled_program"]
         self.storage.update_training_run(run)
         await self._rebuild_profiles(old_program)
         await self._rebuild_profiles(program_id)
