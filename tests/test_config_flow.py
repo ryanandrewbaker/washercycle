@@ -26,10 +26,13 @@ from custom_components.washercycle.const import (
 )
 from tests.helpers.ha_installed import home_assistant_installed
 
-pytestmark = pytest.mark.skipif(
-    not home_assistant_installed(),
-    reason="Home Assistant is not installed",
-)
+pytestmark = [
+    pytest.mark.usefixtures("enable_custom_integrations"),
+    pytest.mark.skipif(
+        not home_assistant_installed(),
+        reason="Home Assistant is not installed",
+    ),
+]
 
 
 def _entry_data() -> dict[str, str]:
@@ -157,3 +160,11 @@ async def test_reconfigure_flow_updates_entry_data(hass: HomeAssistant) -> None:
     assert reloaded is not None
     assert reloaded.data[CONF_POWER_SENSOR] == "sensor.new_washer_power"
     assert reloaded.options[OPT_SHADOW_MODE] is True
+
+
+@pytest.fixture(autouse=True)
+async def _unload_washercycle_entries(hass: HomeAssistant):
+    yield
+    for entry in list(hass.config_entries.async_entries("washercycle")):
+        await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()

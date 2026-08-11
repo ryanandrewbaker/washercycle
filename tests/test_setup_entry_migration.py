@@ -20,10 +20,13 @@ from custom_components.washercycle.setup_entry import async_setup_entry, async_u
 from tests.helpers.ha_installed import home_assistant_installed
 from tests.helpers.v1_storage import sample_v1_storage_payload
 
-pytestmark = pytest.mark.skipif(
-    not home_assistant_installed(),
-    reason="Home Assistant is not installed",
-)
+pytestmark = [
+    pytest.mark.usefixtures("enable_custom_integrations"),
+    pytest.mark.skipif(
+        not home_assistant_installed(),
+        reason="Home Assistant is not installed",
+    ),
+]
 
 
 @pytest.mark.asyncio
@@ -68,3 +71,11 @@ async def test_setup_entry_loads_existing_v1_storage(
     assert coordinator.storage.data["profiles"]["daily_wash"]["profile_schema_version"] == 2
 
     assert await async_unload_entry(hass, entry)
+
+
+@pytest.fixture(autouse=True)
+async def _unload_washercycle_entries(hass: HomeAssistant):
+    yield
+    for entry in list(hass.config_entries.async_entries("washercycle")):
+        await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()

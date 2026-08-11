@@ -20,20 +20,6 @@ except ImportError:
 if HA_INSTALLED:
     pytest_plugins = ("pytest_homeassistant_custom_component.common",)
 
-    @pytest.fixture(autouse=True)
-    def auto_enable_custom_integrations(enable_custom_integrations):
-        """Load custom_components/washercycle for integration tests."""
-        return enable_custom_integrations
-
-    @pytest.fixture(autouse=True)
-    async def unload_config_entries(hass):
-        """Unload WasherCycle entries so coordinator timers do not linger."""
-        yield
-        for entry in list(hass.config_entries.async_entries()):
-            if entry.domain == "washercycle":
-                await hass.config_entries.async_unload(entry.entry_id)
-        await hass.async_block_till_done()
-
 # Mock homeassistant for pure domain tests when HA is not installed
 if not HA_INSTALLED and "homeassistant" not in sys.modules:
     ha = ModuleType("homeassistant")
