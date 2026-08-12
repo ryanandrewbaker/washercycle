@@ -16,7 +16,7 @@ from custom_components.washercycle.const import (
     DOMAIN,
     STORAGE_KEY,
 )
-from custom_components.washercycle.setup_entry import async_setup_entry, async_unload_entry
+from custom_components.washercycle.setup_entry import async_setup_entry
 from tests.helpers.ha_installed import home_assistant_installed
 from tests.helpers.v1_storage import sample_v1_storage_payload
 
@@ -70,7 +70,8 @@ async def test_setup_entry_loads_existing_v1_storage(
     hass.states.async_set("sensor.washer_energy", "1.2", {"unit_of_measurement": "kWh"})
     hass.states.async_set("binary_sensor.washer_door", "off")
 
-    assert await async_setup_entry(hass, entry)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
 
     coordinator = hass.data[DOMAIN][entry_id]
     assert coordinator.storage.get_pending_program() == "auto"
@@ -79,7 +80,8 @@ async def test_setup_entry_loads_existing_v1_storage(
     assert "announcement_state" not in coordinator.storage.data
     assert coordinator.storage.data["profiles"]["daily_wash"]["profile_schema_version"] == 2
 
-    assert await async_unload_entry(hass, entry)
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
 
 
 @pytest.fixture(autouse=True)

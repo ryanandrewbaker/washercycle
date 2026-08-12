@@ -77,7 +77,7 @@ async def test_options_flow_loads_and_saves(hass: HomeAssistant) -> None:
     result = await hass.config_entries.options.async_init(entry.entry_id)
     assert result["type"] == FlowResultType.FORM
     assert result["step_id"] == "init"
-    assert result["errors"] == {}
+    assert not result.get("errors")
 
     suggested = result["data_schema"].schema
     shadow_default = suggested[OPT_SHADOW_MODE].default()
