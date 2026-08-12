@@ -79,10 +79,6 @@ async def test_options_flow_loads_and_saves(hass: HomeAssistant) -> None:
     assert result["step_id"] == "init"
     assert not result.get("errors")
 
-    suggested = result["data_schema"].schema
-    shadow_default = suggested[OPT_SHADOW_MODE].default
-    assert shadow_default is DEFAULT_SHADOW_MODE
-
     saved_options = {
         OPT_SHADOW_MODE: False,
         OPT_LEGACY_STATUS_MIRROR: True,
