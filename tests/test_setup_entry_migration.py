@@ -16,7 +16,6 @@ from custom_components.washercycle.const import (
     DOMAIN,
     STORAGE_KEY,
 )
-from custom_components.washercycle.setup_entry import async_setup_entry
 from tests.helpers.ha_installed import home_assistant_installed
 from tests.helpers.v1_storage import sample_v1_storage_payload
 
