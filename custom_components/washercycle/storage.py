@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import copy
 import logging
 from typing import Any
@@ -15,6 +14,8 @@ from .models import CycleRecord, LatencyStats, ProgramProfile, TrainingRun
 from .profiles import seed_profiles
 
 _LOGGER = logging.getLogger(__name__)
+
+_SAVE_DEBOUNCE_SECONDS = 30
 
 _OBSOLETE_STORAGE_KEYS = (
     "active_recording",
@@ -142,7 +143,6 @@ class WasherCycleStorage:
             STORAGE_VERSION,
             f"{STORAGE_KEY}_{entry_id}",
         )
-        self._save_task: asyncio.Task | None = None
         self._data: dict[str, Any] = {}
 
     async def async_load(self) -> dict[str, Any]:
@@ -166,19 +166,10 @@ class WasherCycleStorage:
             await self._store.async_save(self._data)
             return
 
-        if self._save_task and not self._save_task.done():
-            self._save_task.cancel()
-
-        async def _delayed_save() -> None:
-            await asyncio.sleep(30)
-            await self._store.async_save(self._data)
-
-        self._save_task = self.hass.async_create_task(_delayed_save())
+        self._store.async_delay_save(lambda: self._data, delay=_SAVE_DEBOUNCE_SECONDS)
 
     async def async_save_now(self) -> None:
         """Save immediately."""
-        if self._save_task and not self._save_task.done():
-            self._save_task.cancel()
         await self._store.async_save(self._data)
 
     @property

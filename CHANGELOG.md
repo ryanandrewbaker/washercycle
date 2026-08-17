@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.1.1] - 2026-08-17
+
+### Fixed
+
+- Delayed storage writes now use Home Assistant's lifecycle-aware `Store.async_delay_save`
+  instead of a custom `asyncio.sleep` task, preventing bootstrap startup delays and
+  lingering tasks during shutdown
+
 ## [2.1.0] - 2026-08-12
 
 ### Fixed
